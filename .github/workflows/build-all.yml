@@ -1,12 +1,13 @@
 name: Build all platforms
 
-# One trigger, every platform: manual dispatch or a tag push produces macOS,
-# Windows and Linux packages side by side. Artifacts are built by the runners,
-# nothing is uploaded anywhere but GitHub's own artifact storage.
+# The only workflow of this repository: one trigger builds macOS (arm64 and
+# Intel), Windows and Linux side by side. Packages are uploaded as workflow
+# artifacts, a tag also creates a release. Nothing leaves GitHub.
 
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - "v*"
 
