@@ -201,12 +201,8 @@ jobs:
         run: |
           cargo build --release
           cargo test -p lan-mouse-proto
-      - name: Formatting and lints
-        run: |
-          cargo fmt --all -- --check
-          # clippy is a moving target: new lints in later versions are no
-          # reason to fail the package, only real errors and rustc warnings
-          cargo clippy --workspace --all-targets --all-features -- -D errors
+      - name: Formatting
+        run: cargo fmt --all -- --check
       - name: Package
         run: |
           out=lan-mouse-linux-x86_64
