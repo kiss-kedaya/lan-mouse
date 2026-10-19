@@ -85,43 +85,48 @@ jobs:
           cargo test -p lan-mouse-proto --target x86_64-pc-windows-gnu
 
       - name: Package
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          $out = "lan-mouse-windows-x86_64"
-          $exe = "target-mingw/x86_64-pc-windows-gnu/release"
-          New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "$exe/lan-mouse.exe", "$exe/lan-mouse-cli.exe", "$exe/daemon.exe" $out
-          if (-not (Test-Path "$out/lan-mouse.exe")) { throw "lan-mouse.exe was not built" }
-          # gdk-pixbuf loaders (the SVG loader is needed for the icons), the
-          # cache is generated from them so that it matches their location
-          $loaders = "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders"
-          New-Item -ItemType Directory -Force $loaders | Out-Null
-          $loader_dir = Get-ChildItem C:\msys64\ucrt64\lib\gdk-pixbuf-2.0 -Directory | Select-Object -First 1
-          Copy-Item "$($loader_dir.FullName)\loaders\*.dll" $loaders
-          $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
-          $env:GDK_PIXBUF_MODULEDIR = (Resolve-Path $loaders).Path
-          & C:\msys64\ucrt64\bin\gdk-pixbuf-query-loaders.exe > "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
-          if ($LASTEXITCODE -ne 0) { throw "gdk-pixbuf-query-loaders failed" }
-          Copy-Item C:\msys64\ucrt64\share\icons "$out/share/icons" -Recurse
-          Copy-Item C:\msys64\ucrt64\share\glib-2.0\schemas "$out/share/glib-2.0/schemas" -Recurse
-          Copy-Item C:\msys64\ucrt64\etc\fonts "$out/etc/fonts" -Recurse
+          set -e
+          prefix=/ucrt64
+          out=lan-mouse-windows-x86_64
+          mkdir -p $out
+          cp target-mingw/x86_64-pc-windows-gnu/release/{lan-mouse,lan-mouse-cli,daemon}.exe $out/
+          test -f $out/lan-mouse.exe
+
+          # gdk-pixbuf loaders (the SVG loader draws the icons), the cache is
+          # generated in place so that every path in it is relative
+          loader_dir=$(dirname "$(find $prefix/lib -path '*/gdk-pixbuf*/loaders' -type d | head -1)")
+          mkdir -p "$out/${loader_dir#$prefix/}/loaders"
+          cp "$loader_dir"/loaders/*.dll "$out/${loader_dir#$prefix/}/loaders/"
+          ( cd "$out/${loader_dir#$prefix/}/loaders" &&
+            GDK_PIXBUF_MODULEDIR=. gdk-pixbuf-query-loaders > ../loaders.cache )
+          cp -r $prefix/share/icons $out/share/
+          mkdir -p $out/share/glib-2.0
+          cp -r $prefix/share/glib-2.0/schemas $out/share/glib-2.0/schemas
+          glib-compile-schemas $out/share/glib-2.0/schemas
+          mkdir -p $out/etc
+          cp -r $prefix/etc/fonts $out/etc/fonts
+
           # every DLL the programs and the loaders need, next to the exe
-          $queue = [System.Collections.Generic.Queue[string]]::new()
-          Get-ChildItem $out -Recurse -Include *.exe, *.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
-          $have = @{}
-          foreach ($f in (Get-ChildItem $out -Recurse -Include *.exe, *.dll)) { $have[$f.Name.ToLower()] = $true }
-          while ($queue.Count -gt 0) {
-            $file = $queue.Dequeue()
-            $deps = & C:\msys64\ucrt64\bin\objdump.exe -p $file | Select-String 'DLL Name: (\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
-            foreach ($n in $deps) {
-              if ($have.ContainsKey($n.ToLower())) { continue }
-              $have[$n.ToLower()] = $true
-              $src = Join-Path "C:\msys64\ucrt64\bin" $n
-              if (Test-Path $src) { Copy-Item $src (Join-Path $out $n); $queue.Enqueue((Join-Path $out $n)) }
-            }
-          }
-          Copy-Item README.md, README.windows.txt $out -ErrorAction SilentlyContinue
-          Compress-Archive -Path "$out/*" -DestinationPath lan-mouse-windows-x86_64.zip
+          queue=$(mktemp)
+          seen=$(mktemp)
+          find $out -name '*.exe' -o -name '*.dll' > $queue
+          i=0
+          while [ $i -lt "$(wc -l < $queue)" ]; do
+            i=$((i + 1))
+            file=$(sed -n "${i}p" $queue)
+            objdump -p "$file" | sed -n 's/^ *DLL Name: //p' | tr -d '\r' | while read -r dll; do
+              if ! grep -qix "$dll" $seen && [ -f "$prefix/bin/$dll" ]; then
+                echo "$dll" >> $seen
+                cp "$prefix/bin/$dll" $out/
+                echo "$out/$dll" >> $queue
+              fi
+            done
+          done
+
+          cp README.md README.windows.txt $out/
+          zip -qr lan-mouse-windows-x86_64.zip $out
 
       - uses: actions/upload-artifact@v6
         with:
