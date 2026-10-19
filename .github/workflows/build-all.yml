@@ -1,0 +1,207 @@
+name: Build all platforms
+
+# One trigger, every platform: manual dispatch or a tag push produces macOS,
+# Windows and Linux packages side by side. Artifacts are built by the runners,
+# nothing is uploaded anywhere but GitHub's own artifact storage.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------- Windows
+  windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v6
+
+      # GTK4, libadwaita and librsvg as prebuilt packages: no local build of
+      # the C stack, which keeps the job fast and reproducible
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gettext
+            zip
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-gnu
+
+      - name: Build
+        env:
+          PKG_CONFIG_PATH: C:\msys64\ucrt64\lib\pkgconfig
+          PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
+          PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
+        run: |
+          cargo build --release --target x86_64-pc-windows-gnu \
+            --bin lan-mouse --bin lan-mouse-cli --bin daemon
+          cargo test -p lan-mouse-proto --target x86_64-pc-windows-gnu
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "lan-mouse-windows-x86_64"
+          $exe = "target/x86_64-pc-windows-gnu/release"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item "$exe/lan-mouse.exe", "$exe/lan-mouse-cli.exe", "$exe/daemon.exe" $out
+          # gdk-pixbuf loaders (the SVG loader is needed for the icons)
+          $loaders = "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+          New-Item -ItemType Directory -Force $loaders | Out-Null
+          Copy-Item C:\msys64\ucrt64\lib\gdk-pixbuf-2.0\2.10.0\loaders\*.dll $loaders
+          $cache = & C:\msys64\ucrt64\bin\gdk-pixbuf-query-loaders.exe
+          $cache = $cache -replace [regex]::Escape("C:/msys64/ucrt64/"), ((Resolve-Path $out).Path.Replace("\","/") + "/")
+          $cache | Set-Content "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" -Encoding ascii
+          Copy-Item C:\msys64\ucrt64\share\icons "$out/share/icons" -Recurse
+          Copy-Item C:\msys64\ucrt64\share\glib-2.0\schemas "$out/share/glib-2.0/schemas" -Recurse
+          Copy-Item C:\msys64\ucrt64\etc\fonts "$out/etc/fonts" -Recurse
+          # every DLL the programs and the loaders need, next to the exe
+          $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
+          $queue = [System.Collections.Generic.Queue[string]]::new()
+          Get-ChildItem $out -Recurse -Include *.exe, *.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
+          $have = @{}
+          foreach ($f in (Get-ChildItem $out -Recurse -Include *.exe, *.dll)) { $have[$f.Name.ToLower()] = $true }
+          while ($queue.Count -gt 0) {
+            $file = $queue.Dequeue()
+            foreach ($n in (& dumpbin /nologo /dependents $file |
+                Select-String '^\s+(\S+\.dll)' | ForEach-Object { $_.Matches[0].Groups[1].Value })) {
+              if ($have.ContainsKey($n.ToLower())) { continue }
+              $have[$n.ToLower()] = $true
+              $src = Join-Path "C:\msys64\ucrt64\bin" $n
+              if (Test-Path $src) { Copy-Item $src (Join-Path $out $n); $queue.Enqueue((Join-Path $out $n)) }
+            }
+          }
+          Copy-Item README.md, README.windows.txt $out -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$out/*" -DestinationPath lan-mouse-windows-x86_64.zip
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: lan-mouse-windows-x86_64
+          path: lan-mouse-windows-x86_64.zip
+
+  # ------------------------------------------------------------------ macOS
+  macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          brew install gtk4 libadwaita librsvg imagemagick
+          brew install --cask inkscape || true
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-${{ matrix.arch }}
+
+      - name: Build
+        run: |
+          cargo build --release
+          cargo test -p lan-mouse-proto
+
+      - name: Bundle
+        run: |
+          cargo install cargo-bundle --locked
+          scripts/makeicns.sh || true
+          cargo bundle --release
+          scripts/copy-macos-dylib.sh "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
+
+      - name: Package
+        run: |
+          cd target/release/bundle/osx
+          zip -r -q "lan-mouse-macos-${{ matrix.arch }}.zip" "Lan Mouse.app"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: lan-mouse-macos-${{ matrix.arch }}
+          path: target/release/bundle/osx/lan-mouse-macos-${{ matrix.arch }}.zip
+
+  # ------------------------------------------------------------------ Linux
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libx11-dev libxtst-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libei-dev libportal-dev \
+            libwayland-dev libxrandr-dev libxi-dev wayland-protocols libpkgconf-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux
+      - name: Build
+        run: |
+          cargo build --release
+          cargo test -p lan-mouse-proto
+      - name: Package
+        run: |
+          out=lan-mouse-linux-x86_64
+          mkdir -p $out
+          cp target/release/lan-mouse target/release/lan-mouse-cli target/release/daemon $out
+          cp README.md $out
+          tar -czf $out.tar.gz $out
+      - uses: actions/upload-artifact@v6
+        with:
+          name: lan-mouse-linux-x86_64
+          path: lan-mouse-linux-x86_64.tar.gz
+
+  # ---------------------------------------------------------------- Release
+  release:
+    name: Release
+    needs: [windows, macos, linux]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lan-mouse-windows-x86_64.zip
+            lan-mouse-macos-arm64.zip
+            lan-mouse-macos-x86_64.zip
+            lan-mouse-linux-x86_64.tar.gz
