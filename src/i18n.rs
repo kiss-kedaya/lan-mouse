@@ -140,7 +140,10 @@ fn system_language() -> Option<String> {
 
 #[cfg(not(target_os = "windows"))]
 fn system_language() -> Option<String> {
-    macos_language()
+    #[cfg(target_os = "macos")]
+    return macos_language();
+    #[cfg(not(target_os = "macos"))]
+    return None;
 }
 
 /// the language preference of the current macOS user.
@@ -176,11 +179,6 @@ fn macos_language() -> Option<String> {
             None
         }
     }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn macos_language() -> Option<String> {
-    None
 }
 
 /// Translate a message. Usage: `gettext!("some English text")`.

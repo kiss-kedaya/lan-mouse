@@ -159,9 +159,11 @@ jobs:
         run: |
           cargo install cargo-bundle --locked
           scripts/makeicns.sh || true
-          # the workspace has several binaries, so bundle only the GUI one
-          cargo bundle --release -p lan-mouse
+          # the package has several binaries, name the GUI one explicitly:
+          # otherwise the first bin target (daemon) is bundled
+          cargo bundle --release --bin lan-mouse
           ls -l "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/"
+          test -x "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
           scripts/copy-macos-dylib.sh "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
 
       - name: Package
