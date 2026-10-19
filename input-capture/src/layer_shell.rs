@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use futures_core::Stream;
 use std::future::Future;
-use std::pin::Pin;
 use std::{
     collections::{HashSet, VecDeque},
     env,

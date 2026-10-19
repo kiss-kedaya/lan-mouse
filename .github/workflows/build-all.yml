@@ -66,9 +66,10 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
         run: |
-          # rustup sets up the Windows profile for the native shell, the msys
-          # shell needs it on the PATH explicitly
-          export PATH="$USERPROFILE/.cargo/bin:$PATH"
+          # rustup installs into CARGO_HOME of the native shell, the msys shell
+          # needs it on the PATH explicitly
+          export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
+          cargo --version && rustc --version
           cargo build --release --target x86_64-pc-windows-gnu \
             --bin lan-mouse --bin lan-mouse-cli --bin daemon
           cargo test -p lan-mouse-proto --target x86_64-pc-windows-gnu
@@ -148,7 +149,9 @@ jobs:
         run: |
           cargo install cargo-bundle --locked
           scripts/makeicns.sh || true
-          cargo bundle --release
+          # the workspace has several binaries, so bundle only the GUI one
+          cargo bundle --release -p lan-mouse
+          ls -l "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/"
           scripts/copy-macos-dylib.sh "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
 
       - name: Package
@@ -181,6 +184,10 @@ jobs:
         run: |
           cargo build --release
           cargo test -p lan-mouse-proto
+      - name: Formatting and lints
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Package
         run: |
           out=lan-mouse-linux-x86_64
