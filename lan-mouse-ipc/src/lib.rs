@@ -99,8 +99,6 @@ fn gettext(message: &str) -> String {
 }
 
 /// translation function installed by the main crate (see `lan_mouse::i18n`)
-
-
 /// localized text of the current translation catalogue
 pub fn gettext_text(message: &str) -> String {
     crate::gettext(message)

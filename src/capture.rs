@@ -497,7 +497,7 @@ impl CaptureTask {
 
         // the backend handed out a synthetic absolute position for one of
         // its hook captures: grow the local geometry with it
-        if self.hook_handles.iter().any(|h| *h == Some(handle)) {
+        if self.hook_handles.contains(&Some(handle)) {
             if let CaptureEvent::Input(Event::Pointer(p @ PointerEvent::Position { .. })) = event {
                 let absolute = capture.supports_absolute();
                 self.local_geometry = Some(match self.local_geometry {

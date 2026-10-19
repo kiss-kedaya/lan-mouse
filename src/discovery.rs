@@ -171,7 +171,11 @@ pub(crate) fn local_hostname() -> String {
 fn windows_computer_name() -> Option<String> {
     let name = std::env::var("COMPUTERNAME").ok()?;
     let name = name.trim();
-    (!name.is_empty()).then(|| name.chars().take(lan_mouse_proto::MAX_HOSTNAME_LEN).collect())
+    (!name.is_empty()).then(|| {
+        name.chars()
+            .take(lan_mouse_proto::MAX_HOSTNAME_LEN)
+            .collect()
+    })
 }
 
 /// a fresh random six digit pairing code (leading zeros kept)
@@ -311,10 +315,11 @@ impl DiscoveryTask {
                         let _ = udp.send_to(&datagram, addr).await;
                     }
                 }
-                msg = listener_next(&mut listener) => match msg {
-                    Some(msg) => self.handle_announcement(msg, own_digest, &mut seen),
-                    None => {}
-                },
+                msg = listener_next(&mut listener) => {
+                    if let Some(msg) = msg {
+                        self.handle_announcement(msg, own_digest, &mut seen);
+                    }
+                }
                 _ = expire_interval.tick() => self.expire(),
             }
         }
@@ -630,16 +635,6 @@ fn pairing_reply_from(peer_cert: &[u8], expected_code: &str, code: &str) -> Prot
     } else {
         ProtoEvent::PairReject
     }
-}
-
-/// announcement packet as sent by the broadcaster (application id + event)
-#[cfg(test)]
-fn announcement_packet(announce: &Announce) -> Vec<u8> {
-    let (buf, len): ([u8; MAX_EVENT_SIZE], usize) = ProtoEvent::Announce(announce.clone()).into();
-    let mut packet = APP_ID.as_bytes().to_vec();
-    packet.push(0);
-    packet.extend_from_slice(&buf[..len]);
-    packet
 }
 
 /// strip the application id in front of announcements and decode the event

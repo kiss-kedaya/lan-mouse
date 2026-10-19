@@ -130,7 +130,7 @@ thread_local! {
     /// the localized command. Building it overwrites name and arguments of all
     /// subcommands, so it is only built once and reused (cloning is cheap).
     static CLAP: std::cell::RefCell<Option<clap::Command>> =
-        std::cell::RefCell::new(None);
+        const { std::cell::RefCell::new(None) };
 }
 
 /// the options shared by all entry points (`--config`, `--port`, ...)
@@ -180,13 +180,30 @@ pub fn translated_command(cmd: clap::Command) -> clap::Command {
 fn translate_labels(cmd: clap::Command) -> clap::Command {
     let t = |text: &str| crate::i18n::gettext(text);
     let has_subcommands = cmd.has_subcommands();
+    // the about line is not repeated here: it is shown by the caller
+    let cmd = if has_subcommands {
+        cmd.bin_name("lan-mouse").about("")
+    } else {
+        cmd
+    };
     let mut cmd = cmd.help_template(t("Usage: {usage}\n\n{all-args}"));
     // the default subcommand heading is "Commands", passed in from the caller
-    let heading: &'static str =
-        Box::leak(t(if has_subcommands { "Commands" } else { "Options" }).into_boxed_str());
-    cmd = cmd.next_help_heading(heading).subcommand_help_heading(heading);
+    let heading: &'static str = Box::leak(
+        t(if has_subcommands {
+            "Commands"
+        } else {
+            "Options"
+        })
+        .into_boxed_str(),
+    );
+    cmd = cmd
+        .next_help_heading(heading)
+        .subcommand_help_heading(heading);
     // clap writes its own labels; they are replaced after rendering instead
-    let ids: Vec<String> = cmd.get_arguments().map(|a| a.get_id().to_string()).collect();
+    let ids: Vec<String> = cmd
+        .get_arguments()
+        .map(|a| a.get_id().to_string())
+        .collect();
     for id in ids {
         let help = cmd
             .get_arguments()
@@ -198,7 +215,10 @@ fn translate_labels(cmd: clap::Command) -> clap::Command {
             None => arg,
         });
     }
-    let names: Vec<String> = cmd.get_subcommands().map(|s| s.get_name().to_owned()).collect();
+    let names: Vec<String> = cmd
+        .get_subcommands()
+        .map(|s| s.get_name().to_owned())
+        .collect();
     for name in names {
         if let Some(sub) = cmd.find_subcommand(&name) {
             let taken = translate_labels(sub.clone());
@@ -223,50 +243,28 @@ fn translate(cmd: clap::Command) -> clap::Command {
     if let Some(about) = cmd.get_about().map(|a| a.to_string()) {
         cmd = cmd.about(t(&about));
     }
-    cmd = cmd.mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
+    translate_help(cmd)
+}
+
+/// translate the help text of every argument, recursively
+fn translate_help(cmd: clap::Command) -> clap::Command {
+    let t = |text: &str| crate::i18n::gettext(text);
+    let mut cmd = cmd.mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
         Some(help) => arg.help(t(&help)),
         None => arg,
     });
-    // `get_subcommands_mut` borrows `cmd` exclusively, so collect the indices
-    // and look each subcommand up again for the recursive call
-    let count = cmd.get_subcommands().count();
     let names: Vec<String> = cmd
         .get_subcommands()
         .map(|s| s.get_name().to_owned())
         .collect();
-    debug_assert_eq!(count, names.len());
     for name in names {
-        let done = cmd.find_subcommand(&name).map(|_| ()).is_some();
-        if done {
-            let sub = cmd.find_subcommand_mut(&name).expect("subcommand");
-            // translate without moving the subcommand out
-            translate_in_place(sub);
+        let sub = cmd.find_subcommand(&name).cloned().expect("subcommand");
+        let sub = translate_help(sub);
+        if let Some(slot) = cmd.find_subcommand_mut(&name) {
+            *slot = sub;
         }
     }
     cmd
-}
-
-/// translate about, argument help and subcommands of `cmd` in place
-fn translate_in_place(cmd: &mut clap::Command) {
-    let t = |text: &str| crate::i18n::gettext(text);
-    if let Some(about) = cmd.get_about().map(|a| a.to_string()) {
-        *cmd = std::mem::take(cmd).about(t(&about));
-    }
-    let name: &'static str = Box::leak(cmd.get_name().to_owned().into_boxed_str());
-    *cmd = std::mem::take(cmd).name(name);
-    *cmd = std::mem::take(cmd).mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
-        Some(help) => arg.help(t(&help)),
-        None => arg,
-    });
-    let names: Vec<String> = cmd
-        .get_subcommands()
-        .map(|s| s.get_name().to_owned())
-        .collect();
-    for name in names {
-        if let Some(sub) = cmd.find_subcommand_mut(&name) {
-            translate_in_place(sub);
-        }
-    }
 }
 
 /// ask the service to pair with another device and report the outcome

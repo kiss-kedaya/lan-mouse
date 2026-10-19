@@ -260,7 +260,7 @@ impl Announce {
     /// digest used to recognize our own announcements
     pub fn digest(&self) -> u64 {
         let mut hash = Sha256::new();
-        hash.update(&self.fingerprint);
+        hash.update(self.fingerprint);
         hash.update(self.instance.to_be_bytes());
         hash.update(self.port.to_be_bytes());
         hash.update(self.hostname.as_bytes());

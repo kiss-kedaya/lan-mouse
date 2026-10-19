@@ -1,8 +1,8 @@
-pub mod i18n;
 mod authorization_window;
 mod client_object;
 mod client_row;
 mod fingerprint_window;
+pub mod i18n;
 mod key_object;
 mod key_row;
 #[cfg(target_os = "macos")]

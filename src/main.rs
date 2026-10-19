@@ -11,13 +11,9 @@ use lan_mouse_cli::CliError;
 #[cfg(feature = "gtk")]
 use lan_mouse_gtk::GtkError;
 use lan_mouse_ipc::{IpcError, IpcListenerCreationError};
-use std::{
-    future::Future,
-    io,
-    process,
-};
 #[cfg(feature = "gtk")]
 use std::process::Child;
+use std::{future::Future, io, process};
 use thiserror::Error;
 use tokio::task::LocalSet;
 
@@ -46,6 +42,10 @@ fn main() {
     // init logging
     let env = Env::default().filter_or("LAN_MOUSE_LOG_LEVEL", "info");
     env_logger::init_from_env(env);
+    // `--language` wins over the environment and is inherited by the service
+    if let Some(i) = std::env::args().position(|a| a == "--language") {
+        lan_mouse::config::set_language(std::env::args().nth(i + 1).as_deref());
+    }
     lan_mouse::i18n::init();
     #[cfg(all(feature = "gtk", feature = "i18n"))]
     lan_mouse_gtk::set_translator(lan_mouse::i18n::gettext);

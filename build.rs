@@ -142,6 +142,7 @@ fn compile_catalogues() {
         out.push_str("    ]),\n");
     }
     out.push_str("];\n");
-    let dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR")).join("catalogues.rs");
+    let dir =
+        std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR")).join("catalogues.rs");
     std::fs::write(dir, out).expect("write catalogues");
 }

@@ -15,11 +15,12 @@ use reis::{
     event::{Connection, DeviceCapability, EiEvent},
     tokio::EiConvertEventStream,
 };
-use std::pin::Pin;
 use std::{
     cell::Cell,
     collections::HashMap,
-    env, io,
+    env,
+    future::Future,
+    io,
     num::NonZeroU32,
     os::unix::net::UnixStream,
     pin::Pin,

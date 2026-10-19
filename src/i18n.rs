@@ -74,7 +74,13 @@ pub fn init() {
 pub fn requested_language() -> Option<String> {
     let value = std::env::var("LANGUAGE")
         .ok()
-        .and_then(|l| l.split(':').next().map(str::trim).filter(|l| !l.is_empty()).map(str::to_owned))
+        .and_then(|l| {
+            l.split(':')
+                .next()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+        })
         .or_else(|| std::env::var("LC_ALL").ok())
         .or_else(|| std::env::var("LC_MESSAGES").ok())
         .or_else(|| std::env::var("LANG").ok())
@@ -82,7 +88,12 @@ pub fn requested_language() -> Option<String> {
         .or_else(system_language);
     let value = value?;
     // drop the modifier and codeset: zh_CN.UTF-8@euro -> zh_CN, C/POSIX are no language
-    let value = value.split(['.', '@']).next().unwrap_or("").trim().to_owned();
+    let value = value
+        .split(['.', '@'])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_owned();
     let value = value.replace('-', "_");
     if value.is_empty() || value == "C" || value == "POSIX" {
         return None;

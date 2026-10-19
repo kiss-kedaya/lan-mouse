@@ -338,7 +338,7 @@ impl From<ConfigClient> for TomlClient {
 
 /// language override from the command line, the user interface of the
 /// spawned service follows it as well
-fn set_language(language: Option<&str>) {
+pub fn set_language(language: Option<&str>) {
     if let Some(language) = language {
         std::env::set_var("LANGUAGE", language);
     }

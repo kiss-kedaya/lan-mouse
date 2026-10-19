@@ -1,7 +1,7 @@
 mod imp;
 
-use glib::Object;
 use adw::prelude::*;
+use glib::Object;
 use gtk::{gio, glib, subclass::prelude::ObjectSubclassIsExt};
 
 glib::wrapper! {
