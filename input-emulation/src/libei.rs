@@ -19,8 +19,8 @@ use async_trait::async_trait;
 
 use reis::{
     ei::{
-        self, Button, Keyboard, Pointer, Scroll, button::ButtonState, handshake::ContextType,
-        keyboard::KeyState,
+        self, Button, Keyboard, Pointer, PointerAbsolute, Scroll, button::ButtonState,
+        handshake::ContextType, keyboard::KeyState,
     },
     event::{self, Connection, DeviceCapability, DeviceEvent, EiEvent, SeatEvent},
     tokio::EiConvertEventStream,
@@ -35,6 +35,8 @@ use super::{Emulation, EmulationHandle, error::LibeiEmulationCreationError};
 #[derive(Clone, Default)]
 struct Devices {
     pointer: Arc<RwLock<Option<(ei::Device, ei::Pointer)>>>,
+    // absolute pointer as offered by the EIS implementation, if any
+    pointer_absolute: Arc<RwLock<Option<(ei::Device, ei::PointerAbsolute)>>>,
     scroll: Arc<RwLock<Option<(ei::Device, ei::Scroll)>>>,
     button: Arc<RwLock<Option<(ei::Device, ei::Button)>>>,
     keyboard: Arc<RwLock<Option<(ei::Device, ei::Keyboard)>>>,
@@ -186,9 +188,9 @@ impl Emulation for LibeiEmulation {
                     }
                 }
                 PointerEvent::Position { time: _, x, y } => {
-                    let pointer_device = self.devices.pointer.read().unwrap();
+                    let pointer_device = self.devices.pointer_absolute.read().unwrap();
                     if let Some((d, p)) = pointer_device.as_ref() {
-                        p.motion_absolute(x, y, 0., 0.);
+                        p.motion_absolute(x as f32, y as f32);
                         d.frame(self.conn.serial(), now);
                     }
                 }
@@ -323,6 +325,13 @@ async fn ei_event_handler(
                 if let Some(pointer) = e.device().interface::<Pointer>() {
                     devices
                         .pointer
+                        .write()
+                        .unwrap()
+                        .replace((device.device().clone(), pointer));
+                }
+                if let Some(pointer) = e.device().interface::<PointerAbsolute>() {
+                    devices
+                        .pointer_absolute
                         .write()
                         .unwrap()
                         .replace((device.device().clone(), pointer));

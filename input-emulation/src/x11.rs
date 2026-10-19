@@ -2,8 +2,7 @@ use async_trait::async_trait;
 use std::ptr;
 use x11::{
     xlib::{
-        self, Display, RootWindow, ScreenCount, ScreenOfDisplay, XCloseDisplay, XDisplayHeight,
-        XDisplayWidth,
+        self, Display, ScreenOfDisplay, XCloseDisplay, XDisplayHeight, XDisplayWidth, XScreenCount,
     },
     xtest,
 };
@@ -183,12 +182,12 @@ impl Emulation for X11Emulation {
         // bounding box of all X screens (0 = default screen)
         unsafe {
             let display: *mut Display = self.display;
-            let n = ScreenCount(display);
+            let n = XScreenCount(display);
             if n <= 0 {
                 return None;
             }
+            // the default screen is the one of index zero
             let screen = ScreenOfDisplay(display, 0);
-            let _ = RootWindow(display, 0);
             Some(Rect::new(
                 0.0,
                 0.0,
