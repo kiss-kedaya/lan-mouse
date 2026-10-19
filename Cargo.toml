@@ -121,3 +121,13 @@ resources = ["target/menubar-template.png"]
 
 [package.metadata.bundle.osx]
 info_plist_exts = ["build-aux/macos-lsui-element.plist"]
+
+# `cargo bundle --bin lan-mouse` needs the settings again: a named binary does
+# not inherit the table above
+[package.metadata.bundle.bin.lan-mouse]
+name = "Lan Mouse"
+icon = ["target/icon.icns", "lan-mouse-gtk/resources/de.feschber.LanMouse.svg"]
+identifier = "de.feschber.LanMouse"
+deb_depends = [ "libadwaita-1-0" ]
+resources = ["target/menubar-template.png"]
+osx = { info_plist_exts = ["build-aux/macos-lsui-element.plist"] }

@@ -1,6 +1,10 @@
 #!/bin/bash
 set -eu
 
+# bundles are placed relative to the workspace root, independent of the
+# directory the script is started from
+cd "$(dirname "$0")/.."
+
 homebrew_path=""
 default_exec_path="target/debug/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
 exec_path="$default_exec_path"

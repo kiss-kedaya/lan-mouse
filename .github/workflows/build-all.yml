@@ -91,18 +91,21 @@ jobs:
           $exe = "target-mingw/x86_64-pc-windows-gnu/release"
           New-Item -ItemType Directory -Force $out | Out-Null
           Copy-Item "$exe/lan-mouse.exe", "$exe/lan-mouse-cli.exe", "$exe/daemon.exe" $out
-          # gdk-pixbuf loaders (the SVG loader is needed for the icons)
+          if (-not (Test-Path "$out/lan-mouse.exe")) { throw "lan-mouse.exe was not built" }
+          # gdk-pixbuf loaders (the SVG loader is needed for the icons), the
+          # cache is generated from them so that it matches their location
           $loaders = "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders"
           New-Item -ItemType Directory -Force $loaders | Out-Null
-          Copy-Item C:\msys64\ucrt64\lib\gdk-pixbuf-2.0\2.10.0\loaders\*.dll $loaders
-          $cache = & C:\msys64\ucrt64\bin\gdk-pixbuf-query-loaders.exe
-          $cache = $cache -replace [regex]::Escape("C:/msys64/ucrt64/"), ((Resolve-Path $out).Path.Replace("\","/") + "/")
-          $cache | Set-Content "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" -Encoding ascii
+          $loader_dir = Get-ChildItem C:\msys64\ucrt64\lib\gdk-pixbuf-2.0 -Directory | Select-Object -First 1
+          Copy-Item "$($loader_dir.FullName)\loaders\*.dll" $loaders
+          $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
+          $env:GDK_PIXBUF_MODULEDIR = (Resolve-Path $loaders).Path
+          & C:\msys64\ucrt64\bin\gdk-pixbuf-query-loaders.exe > "$out/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          if ($LASTEXITCODE -ne 0) { throw "gdk-pixbuf-query-loaders failed" }
           Copy-Item C:\msys64\ucrt64\share\icons "$out/share/icons" -Recurse
           Copy-Item C:\msys64\ucrt64\share\glib-2.0\schemas "$out/share/glib-2.0/schemas" -Recurse
           Copy-Item C:\msys64\ucrt64\etc\fonts "$out/etc/fonts" -Recurse
           # every DLL the programs and the loaders need, next to the exe
-          $env:PATH = "C:\msys64\ucrt64\bin;" + $env:PATH
           $queue = [System.Collections.Generic.Queue[string]]::new()
           Get-ChildItem $out -Recurse -Include *.exe, *.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
           $have = @{}
@@ -164,7 +167,9 @@ jobs:
           cargo bundle --release --bin lan-mouse
           ls -l "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/"
           test -x "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
-          scripts/copy-macos-dylib.sh "target/release/bundle/osx/Lan Mouse.app/Contents/MacOS/lan-mouse"
+          app="target/release/bundle/osx/Lan Mouse.app"
+          test -x "$app/Contents/MacOS/lan-mouse"
+          scripts/copy-macos-dylib.sh "$app/Contents/MacOS/lan-mouse"
 
       - name: Package
         run: |
@@ -208,7 +213,24 @@ jobs:
           mkdir -p $out
           cp target/release/lan-mouse target/release/lan-mouse-cli target/release/daemon $out
           cp README.md $out
-          tar -czf $out.tar.gz $out
+          # launcher for GTK from Homebrew, the binary is built on ubuntu 22.04
+          # and older distributions may not have a new enough libadwaita
+          cat > lan-mouse <<'SH'
+#!/bin/sh
+# Lan Mouse: uses Homebrew's GTK when it is installed, otherwise the
+# system libraries (ubuntu 22.04 or newer)
+libdir=""
+for dir in /usr/local/lib /home/linuxbrew/.linuxbrew/lib "$HOME/.linuxbrew/lib"; do
+  if [ -e "$dir/libadwaita-1.so.0" ]; then libdir="$dir"; break; fi
+done
+if [ -n "$libdir" ]; then
+  export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  export XDG_DATA_DIRS="$(dirname "$libdir")/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+fi
+exec "$(dirname "$0")/lan-mouse-linux/bin/lan-mouse" "$@"
+          SH
+          chmod +x lan-mouse
+          tar -czf $out.tar.gz lan-mouse $out
       - uses: actions/upload-artifact@v6
         with:
           name: lan-mouse-linux-x86_64
