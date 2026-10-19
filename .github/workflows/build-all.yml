@@ -54,9 +54,14 @@ jobs:
         with:
           targets: x86_64-pc-windows-gnu
 
+      # only the target directory is cached: the toolchain has to link with
+      # the mingw gcc, a cache of the host profiled build scripts does not match
       - uses: Swatinem/rust-cache@v2
         with:
           key: windows-gnu
+          cache-targets: true
+          cache-all-crates: true
+          workspaces: ". -> target-mingw"
 
       - name: Build
         shell: msys2 {0}
@@ -66,13 +71,15 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
           # msys pkg-config has no cross profile, the target is the host here
           PKG_CONFIG_ALLOW_CROSS: 1
-          PKG_CONFIG_SYSROOT_DIR: /
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
         run: |
           # rustup installs into CARGO_HOME of the native shell, the msys shell
           # needs it on the PATH explicitly
           export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
           cargo --version && rustc --version
+          # a separate target dir: the host shell builds its build scripts for
+          # windows-msvc and the mingw objects must not be mixed with them
+          export CARGO_TARGET_DIR=target-mingw
           cargo build --release --target x86_64-pc-windows-gnu \
             --bin lan-mouse --bin lan-mouse-cli --bin daemon
           cargo test -p lan-mouse-proto --target x86_64-pc-windows-gnu
@@ -81,7 +88,7 @@ jobs:
         shell: pwsh
         run: |
           $out = "lan-mouse-windows-x86_64"
-          $exe = "target/x86_64-pc-windows-gnu/release"
+          $exe = "target-mingw/x86_64-pc-windows-gnu/release"
           New-Item -ItemType Directory -Force $out | Out-Null
           Copy-Item "$exe/lan-mouse.exe", "$exe/lan-mouse-cli.exe", "$exe/daemon.exe" $out
           # gdk-pixbuf loaders (the SVG loader is needed for the icons)
