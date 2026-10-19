@@ -1,0 +1,43 @@
+# example configuration
+#
+# This file is only an example: the real configuration is written next to the
+# certificate, see README (Configuration).
+
+# configure release bind
+release_bind = [ "KeyA", "KeyS", "KeyD", "KeyF" ]
+
+# optional port (defaults to 4242)
+port = 4242
+
+# list of authorized tls certificate fingerprints that
+# are accepted for incoming traffic
+[authorized_fingerprints]
+# add entries of the form "<sha256 fingerprint>" = "<description>", e.g.
+# "aa:bb:cc:...:ff" = "my laptop"
+
+# define a client on the right side with host name "example-host"
+[[clients]]
+# position (left | right | top | bottom)
+position = "right"
+# hostname
+hostname = "example-host"
+# activate this client immediately when lan-mouse is started
+activate_on_startup = true
+# optional list of (known) ip addresses
+ips = ["192.0.2.10"]
+
+# define a client on the left side with IP address 192.0.2.20
+[[clients]]
+position = "left"
+# The hostname is optional: When no hostname is specified,
+# at least one ip address needs to be specified.
+hostname = "example-host-2"
+# ips for ethernet and wifi
+ips = ["192.0.2.20", "192.0.2.21"]
+# optional port
+port = 4242
+# optional shell command run via `sh -c` when the cursor enters this client
+enter_hook = "notify-send 'entered example-host-2'"
+# optional shell command run via `sh -c` when capture for this client is
+# released (release_bind chord, peer Leave, or `cli deactivate`)
+leave_hook = "notify-send 'left example-host-2'"

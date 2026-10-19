@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="PairingWindow" parent="AdwWindow">
+    <property name="modal">True</property>
+    <property name="default-width">380</property>
+    <property name="title" translatable="yes">Pair with another device</property>
+    <property name="content">
+      <object class="AdwToolbarView">
+        <child type="top">
+          <object class="AdwHeaderBar">
+            <style>
+              <class name="flat"/>
+            </style>
+          </object>
+        </child>
+        <property name="content">
+          <object class="AdwClamp">
+            <property name="maximum-size">380</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">24</property>
+                <property name="margin-start">24</property>
+                <property name="margin-end">24</property>
+                <property name="margin-top">24</property>
+                <property name="margin-bottom">24</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Enter the pairing code shown on the other device. The device is trusted permanently afterwards.</property>
+                    <property name="wrap">True</property>
+                    <property name="xalign">0</property>
+                    <style>
+                      <class name="dim-label"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title" translatable="yes">Device</property>
+                    <child>
+                      <object class="AdwComboRow" id="device_row">
+                        <property name="title" translatable="yes">Discovered device</property>
+                        <property name="model">
+                          <object class="GtkStringList" id="device_list"/>
+                        </property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title" translatable="yes">Address</property>
+                        <child>
+                          <object class="GtkEntry" id="addr_entry">
+                            <property name="placeholder-text" translatable="yes">ip address:port</property>
+                            <property name="valign">center</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title" translatable="yes">Pairing code</property>
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title" translatable="yes">Code</property>
+                        <property name="subtitle" translatable="yes">leave empty to request access, the other device confirms</property>
+                        <child>
+                          <object class="GtkEntry" id="code_entry">
+                            <property name="max-length">16</property>
+                            <property name="width-chars">10</property>
+                            <property name="xalign">0.5</property>
+                            <property name="valign">center</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkButton" id="connect_button">
+                    <signal name="clicked" handler="handle_connect" swapped="true"/>
+                    <property name="label" translatable="yes">Pair and connect</property>
+                    <property name="height-request">46</property>
+                    <style>
+                      <class name="suggested-action"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </property>
+      </object>
+    </property>
+  </template>
+</interface>

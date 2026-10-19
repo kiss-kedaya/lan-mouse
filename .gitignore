@@ -1,0 +1,22 @@
+/target
+.gdbinit
+.idea/
+.vs/
+.vscode/
+.direnv/
+result
+*.pem
+*.csr
+extfile.conf
+
+# flatpak files
+.flatpak-builder
+repo
+
+# local build convenience, not part of the repository
+.cargo/config.toml
+
+# local runtime state: certificates, pairing codes, machine configs
+lan-mouse.pem
+*.local.toml
+config.local.toml
