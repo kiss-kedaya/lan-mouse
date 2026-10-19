@@ -212,18 +212,18 @@ jobs:
           # launcher for GTK from Homebrew, the binary is built on ubuntu 22.04
           # and older distributions may not have a new enough libadwaita
           cat > lan-mouse <<'SH'
-#!/bin/sh
-# Lan Mouse: uses Homebrew's GTK when it is installed, otherwise the
-# system libraries (ubuntu 22.04 or newer)
-libdir=""
-for dir in /usr/local/lib /home/linuxbrew/.linuxbrew/lib "$HOME/.linuxbrew/lib"; do
-  if [ -e "$dir/libadwaita-1.so.0" ]; then libdir="$dir"; break; fi
-done
-if [ -n "$libdir" ]; then
-  export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-  export XDG_DATA_DIRS="$(dirname "$libdir")/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-fi
-exec "$(dirname "$0")/lan-mouse-linux/bin/lan-mouse" "$@"
+          #!/bin/sh
+          # Lan Mouse: uses Homebrew's GTK when it is installed, otherwise the
+          # system libraries (ubuntu 22.04 or newer)
+          libdir=""
+          for dir in /usr/local/lib /home/linuxbrew/.linuxbrew/lib "$HOME/.linuxbrew/lib"; do
+            if [ -e "$dir/libadwaita-1.so.0" ]; then libdir="$dir"; break; fi
+          done
+          if [ -n "$libdir" ]; then
+            export LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            export XDG_DATA_DIRS="$(dirname "$libdir")/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+          fi
+          exec "$(dirname "$0")/lan-mouse-linux/bin/lan-mouse" "$@"
           SH
           chmod +x lan-mouse
           tar -czf $out.tar.gz lan-mouse $out
