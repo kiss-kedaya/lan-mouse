@@ -38,7 +38,8 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
-          update: true
+          # the shipped toolchains are enough, updating first is slow and flaky
+          update: false
           install: >-
             mingw-w64-ucrt-x86_64-gtk4
             mingw-w64-ucrt-x86_64-libadwaita
@@ -48,8 +49,10 @@ jobs:
             mingw-w64-ucrt-x86_64-gettext
             zip
 
+      # the Rust installer has to run outside of the msys shell
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable-x86_64-pc-windows-msvc
           targets: x86_64-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2
@@ -57,8 +60,9 @@ jobs:
           key: windows-gnu
 
       - name: Build
+        shell: msys2 {0}
         env:
-          PKG_CONFIG_PATH: C:\msys64\ucrt64\lib\pkgconfig
+          PKG_CONFIG_PATH: C:/msys64/ucrt64/lib/pkgconfig
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
           PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
@@ -92,8 +96,8 @@ jobs:
           foreach ($f in (Get-ChildItem $out -Recurse -Include *.exe, *.dll)) { $have[$f.Name.ToLower()] = $true }
           while ($queue.Count -gt 0) {
             $file = $queue.Dequeue()
-            foreach ($n in (& dumpbin /nologo /dependents $file |
-                Select-String '^\s+(\S+\.dll)' | ForEach-Object { $_.Matches[0].Groups[1].Value })) {
+            $deps = & C:\msys64\ucrt64\bin\objdump.exe -p $file | Select-String 'DLL Name: (\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+            foreach ($n in $deps) {
               if ($have.ContainsKey($n.ToLower())) { continue }
               $have[$n.ToLower()] = $true
               $src = Join-Path "C:\msys64\ucrt64\bin" $n
