@@ -49,10 +49,9 @@ jobs:
             mingw-w64-ucrt-x86_64-gettext
             zip
 
-      # the Rust installer has to run outside of the msys shell
+      # the job defaults to the msys shell; the toolchain action sets its own
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable-x86_64-pc-windows-msvc
           targets: x86_64-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2
@@ -169,7 +168,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libx11-dev libxtst-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev libei-dev libportal-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libportal-dev \
             libwayland-dev libxrandr-dev libxi-dev wayland-protocols libpkgconf-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
