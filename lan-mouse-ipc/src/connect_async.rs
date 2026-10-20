@@ -37,6 +37,7 @@ impl Stream for AsyncFrontendEventReader {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let line = ready!(self.lines_stream.poll_next_unpin(cx));
+        log::debug!("IPCDEBUG event poll {:?}", line.is_some());
         let event = line.map(|l| {
             l.map_err(Into::<IpcError>::into)
                 .and_then(|l| serde_json::from_str(l.as_str()).map_err(|e| e.into()))
@@ -51,6 +52,7 @@ impl AsyncFrontendRequestWriter {
         log::debug!("requesting: {json}");
         json.push('\n');
         self.tx.write_all(json.as_bytes()).await?;
+        log::debug!("IPCDEBUG written");
         Ok(())
     }
 }
