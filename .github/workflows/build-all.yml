@@ -281,13 +281,23 @@ jobs:
             tag=${GITHUB_REF_NAME#v}
             kind="Release"
           else
-            tag=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
-            if [ -z "$tag" ]; then
+            base=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+            if [ -z "$base" ]; then
               # first release of the repository
               tag=$package_version
             else
               # 0.12.0 -> 0.12.1
-              tag=$(echo "$tag" | awk -F. '{ $NF = $NF + 1; OFS = "."; print }')
+              major=$(echo "$base" | cut -d. -f1)
+              minor=$(echo "$base" | cut -d. -f2)
+              patch=$(echo "$base" | cut -d. -f3)
+              if [ -z "$patch" ]; then
+                # v1 -> v1.1
+                minor=$(echo "$minor" | awk '{ print $1 + 1 }')
+                tag="$major.$minor"
+              else
+                patch=$(echo "$patch" | awk '{ print $1 + 1 }')
+                tag="$major.$minor.$patch"
+              fi
             fi
             # several pushes can land on main, keep one release per version
             if git rev-parse -q --verify "refs/tags/v$tag" >/dev/null; then
