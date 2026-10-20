@@ -33,7 +33,7 @@ use input_event::{
     scancode::{self, Linux},
 };
 
-use super::{CaptureEvent, Position, display_util};
+use super::{CaptureError, CaptureEvent, Position, display_util};
 
 pub(crate) struct EventThread {
     request_buffer: Arc<Mutex<Vec<ClientUpdate>>>,
@@ -67,41 +67,41 @@ impl EventThread {
     }
 
     pub(crate) fn release_capture(&self) {
-        self.signal(RequestType::Release);
+        if let Err(e) = self.signal(RequestType::Release) {
+            log::debug!("could not release the capture: {e}");
+        }
     }
 
-    pub(crate) fn create(&self, pos: Position) {
-        self.client_update(ClientUpdate::Create(pos));
+    pub(crate) fn create(&self, pos: Position) -> Result<(), CaptureError> {
+        self.client_update(ClientUpdate::Create(pos))
     }
 
-    pub(crate) fn destroy(&self, pos: Position) {
-        self.client_update(ClientUpdate::Destroy(pos));
+    pub(crate) fn destroy(&self, pos: Position) -> Result<(), CaptureError> {
+        self.client_update(ClientUpdate::Destroy(pos))
     }
 
     fn exit(&self) {
-        self.signal(RequestType::Exit);
+        let _ = self.signal(RequestType::Exit);
     }
 
-    fn client_update(&self, request: ClientUpdate) {
+    fn client_update(&self, request: ClientUpdate) -> Result<(), CaptureError> {
         {
             let mut requests = self.request_buffer.lock().unwrap();
             requests.push(request);
         }
-        self.signal(RequestType::ClientUpdate);
+        self.signal(RequestType::ClientUpdate)
     }
 
-    fn signal(&self, event_type: RequestType) {
-        // no id yet: the thread failed to start, nothing can be signalled
+    /// wakes the message loop; the capture thread only exists once it has a
+    /// message queue, so a missing id means it could not start
+    fn signal(&self, event_type: RequestType) -> Result<(), CaptureError> {
         let Some(id) = *self.thread_id.1.lock().unwrap() else {
-            return;
+            return Err(CaptureError::Other(
+                "the Windows input capture thread is not running".to_owned(),
+            ));
         };
-        // a failed post is not fatal (the thread may have ended already),
-        // panicking here would take the whole program down
-        if let Err(e) =
-            unsafe { PostThreadMessageW(id, WM_USER, WPARAM(event_type as usize), LPARAM(0)) }
-        {
-            log::debug!("could not post to the capture thread: {e}");
-        }
+        unsafe { PostThreadMessageW(id, WM_USER, WPARAM(event_type as usize), LPARAM(0)) }
+            .map_err(|e| CaptureError::Other(format!("Windows message queue: {e}")))
     }
 }
 

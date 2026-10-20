@@ -55,6 +55,8 @@ pub enum CaptureError {
     #[cfg(target_os = "macos")]
     #[error("Event tap disabled")]
     EventTapDisabled,
+    #[error("{0}")]
+    Other(String),
 }
 
 #[derive(Debug, Error)]
