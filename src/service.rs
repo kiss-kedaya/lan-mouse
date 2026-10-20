@@ -137,11 +137,18 @@ impl Service {
             Some(code) => code,
             None => crate::discovery::store_code(&mut config, None),
         };
+        // a configured client is looked for at its known addresses as well
+        let hints = config
+            .clients()
+            .into_iter()
+            .flat_map(|c| c.ips.into_iter().map(move |ip| SocketAddr::new(ip, c.port)))
+            .collect();
         let discovery = Discovery::new(
             config.cert_path(),
             public_key_fingerprint.clone(),
             port,
             code,
+            hints,
         )
         .await?;
 

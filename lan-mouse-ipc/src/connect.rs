@@ -62,6 +62,18 @@ pub fn connect() -> Result<(FrontendEventReader, FrontendRequestWriter), Connect
     make_connection(rx)
 }
 
+/// Connects, giving the service up to `timeout` to open its socket. A
+/// freshly started service needs a moment (it loads the certificate, binds
+/// its ports), and a frontend that gave up in that moment finds a service
+/// running later but has no window to show it.
+pub fn connect_with_timeout(
+    timeout: Duration,
+) -> Result<(FrontendEventReader, FrontendRequestWriter), ConnectionError> {
+    let deadline = std::time::Instant::now() + timeout;
+    let rx = wait_for_service_until(deadline)?;
+    make_connection(rx)
+}
+
 #[cfg(unix)]
 fn make_connection(
     rx: UnixStream,
@@ -91,11 +103,19 @@ fn make_connection(
 /// wait for the lan-mouse socket to come online
 #[cfg(unix)]
 fn wait_for_service() -> Result<UnixStream, ConnectionError> {
+    wait_for_service_until(std::time::Instant::now() + RETRY_FOREVER)
+}
+
+#[cfg(unix)]
+fn wait_for_service_until(deadline: std::time::Instant) -> Result<UnixStream, ConnectionError> {
     let socket_path = crate::default_socket_path()?;
     let mut duration = Duration::from_millis(10);
     loop {
         if let Ok(stream) = UnixStream::connect(&socket_path) {
             break Ok(stream);
+        }
+        if std::time::Instant::now() >= deadline {
+            break Err(ConnectionError::Timeout);
         }
         // a signaling mechanism or inotify could be used to
         // improve this
@@ -105,14 +125,25 @@ fn wait_for_service() -> Result<UnixStream, ConnectionError> {
 
 #[cfg(windows)]
 fn wait_for_service() -> Result<TcpStream, ConnectionError> {
+    wait_for_service_until(std::time::Instant::now() + RETRY_FOREVER)
+}
+
+#[cfg(windows)]
+fn wait_for_service_until(deadline: std::time::Instant) -> Result<TcpStream, ConnectionError> {
     let mut duration = Duration::from_millis(10);
     loop {
         if let Ok(stream) = TcpStream::connect("127.0.0.1:5252") {
             break Ok(stream);
         }
+        if std::time::Instant::now() >= deadline {
+            break Err(ConnectionError::Timeout);
+        }
         thread::sleep(exponential_back_off(&mut duration));
     }
 }
+
+/// the default of `connect` and `connect_async` without a timeout
+const RETRY_FOREVER: Duration = Duration::from_secs(60 * 60 * 24 * 365);
 
 fn exponential_back_off(duration: &mut Duration) -> Duration {
     let new = duration.saturating_mul(2);

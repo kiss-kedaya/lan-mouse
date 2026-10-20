@@ -324,10 +324,10 @@ fn build_ui(app: &Application) {
                 log::error!("failed to spawn daemon: {spawn_err}");
                 process::exit(1);
             }
-            match lan_mouse_ipc::connect() {
+            match lan_mouse_ipc::connect_with_timeout(std::time::Duration::from_secs(20)) {
                 Ok(conn) => conn,
                 Err(e) => {
-                    log::error!("{e}");
+                    log::error!("the lan-mouse service did not start: {e}");
                     process::exit(1);
                 }
             }

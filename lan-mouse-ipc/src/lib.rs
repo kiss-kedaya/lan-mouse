@@ -20,7 +20,9 @@ mod connect;
 mod connect_async;
 mod listen;
 
-pub use connect::{FrontendEventReader, FrontendRequestWriter, connect, try_connect};
+pub use connect::{
+    FrontendEventReader, FrontendRequestWriter, connect, connect_with_timeout, try_connect,
+};
 pub use connect_async::{AsyncFrontendEventReader, AsyncFrontendRequestWriter, connect_async};
 pub use listen::AsyncFrontendListener;
 

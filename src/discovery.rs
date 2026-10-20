@@ -92,11 +92,15 @@ pub(crate) struct Discovery {
 }
 
 impl Discovery {
+    /// `hints` are the addresses of configured clients: a device that is
+    /// known but does not show up (broadcasts lost, another subnet, a port
+    /// that is only reachable directly) is still contacted there
     pub(crate) async fn new(
         cert_path: &Path,
         fingerprint: String,
         port: u16,
         code: String,
+        hints: Vec<SocketAddr>,
     ) -> Result<Self, std::io::Error> {
         let cert = crypto::load_certificate(cert_path)
             .map_err(|e| std::io::Error::other(format!("pairing certificate: {e}")))?;
@@ -109,6 +113,7 @@ impl Discovery {
             port,
             code,
             peers: HashMap::new(),
+            hints,
             request_rx,
             event_tx,
         };
@@ -250,6 +255,8 @@ struct DiscoveryTask {
     port: u16,
     code: String,
     peers: HashMap<IpAddr, Peer>,
+    /// addresses of configured clients, contacted directly as well
+    hints: Vec<SocketAddr>,
     request_rx: local_channel::mpsc::Receiver<DiscoveryRequest>,
     event_tx: local_channel::mpsc::Sender<DiscoveryEvent>,
 }
@@ -273,6 +280,8 @@ impl DiscoveryTask {
         let udp =
             TokioUdpSocket::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0)).await?;
         udp.set_broadcast(true)?;
+        // the addresses of this host, their subnets get the announcement too
+        let local_ips = udp.local_addr().map(|_| local_ips()).unwrap_or_default();
 
         let listener = DtlsListener::new(self.cert.clone(), self.code.clone(), self.port).await;
         // a busy port (e.g. another instance) must not stop discovery, only
@@ -312,6 +321,14 @@ impl DiscoveryTask {
                     // devices we already know get the announcement directly
                     // as well, broadcast packets get dropped more often
                     for addr in self.known_addrs() {
+                        let _ = udp.send_to(&datagram, addr).await;
+                    }
+                    // the broadcast of every local subnet: Windows and some
+                    // switches drop the limited broadcast 255.255.255.255
+                    for target in subnet_broadcasts(&local_ips, self.port) {
+                        let _ = udp.send_to(&datagram, target).await;
+                    }
+                    for addr in &self.hints {
                         let _ = udp.send_to(&datagram, addr).await;
                     }
                 }
@@ -516,6 +533,51 @@ fn update_config_file(path: &std::path::Path, code: &str) -> std::io::Result<()>
 struct Announcement {
     announce: Announce,
     from: SocketAddr,
+}
+
+/// `/24` broadcast address of every IPv4 address (`ip.addr` is the subnet
+/// address of `ip/24`)
+fn subnet_broadcasts(ips: &[Ipv4Addr], port: u16) -> Vec<SocketAddr> {
+    let mut seen = HashSet::new();
+    ips.iter()
+        .filter(|ip| !ip.is_loopback() && !ip.is_unspecified())
+        .map(|ip| {
+            let [a, b, c, _] = ip.octets();
+            Ipv4Addr::new(a, b, c, 255)
+        })
+        .filter(|broadcast| seen.insert(*broadcast))
+        .map(|broadcast| SocketAddr::new(IpAddr::V4(broadcast), port))
+        .collect()
+}
+
+/// the IPv4 addresses of this host, without loopback
+fn local_ips() -> Vec<Ipv4Addr> {
+    let mut ips = vec![];
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    let _ = &mut ips;
+    #[cfg(target_os = "windows")]
+    {
+        // the UDP route to a public address uses the interface that reaches
+        // the local network (no packet is sent for that)
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect("8.8.8.8:80").is_ok() {
+                if let Ok(std::net::SocketAddr::V4(addr)) = socket.local_addr() {
+                    ips.push(*addr.ip());
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = std::process::Command::new("hostname").arg("-I").output() {
+            for token in String::from_utf8_lossy(&output.stdout).split_whitespace() {
+                if let Ok(ip) = token.parse() {
+                    ips.push(ip);
+                }
+            }
+        }
+    }
+    ips
 }
 
 /// whether a UDP datagram starts with a DTLS ClientHello handshake record
