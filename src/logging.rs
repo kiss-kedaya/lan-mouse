@@ -28,7 +28,11 @@ pub fn init() {
         let _ = std::fs::rename(&path, path.with_extension("log.1"));
         if let Ok(file) = std::fs::File::create(&path) {
             let file = std::sync::Mutex::new(file);
-            builder.target(env_logger::Target::Pipe(Box::new(FileWriter(file))));
+            // the file is the place to look when something does not work, so
+            // it always holds the debug level messages
+            builder
+                .filter_level(log::LevelFilter::Debug)
+                .target(env_logger::Target::Pipe(Box::new(FileWriter(file))));
         }
     }
     builder.init();

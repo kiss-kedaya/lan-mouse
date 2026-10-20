@@ -283,7 +283,9 @@ impl DiscoveryTask {
         // the addresses of this host, their subnets get the announcement too
         let local_ips = udp.local_addr().map(|_| local_ips()).unwrap_or_default();
 
+        log::info!("opening the pairing listener on port {}", self.port);
         let listener = DtlsListener::new(self.cert.clone(), self.code.clone(), self.port).await;
+        log::info!("pairing listener opened");
         // a busy port (e.g. another instance) must not stop discovery, only
         // the announcement receiver and pairing depend on it
         let mut listener = match listener {

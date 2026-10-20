@@ -146,6 +146,7 @@ impl Service {
             .into_iter()
             .flat_map(|c| c.ips.into_iter().map(move |ip| SocketAddr::new(ip, c.port)))
             .collect();
+        log::info!("starting discovery");
         let discovery = Discovery::new(
             config.cert_path(),
             public_key_fingerprint.clone(),
@@ -154,6 +155,7 @@ impl Service {
             hints,
         )
         .await?;
+        log::info!("discovery started");
 
         let service = Self {
             discovery,
