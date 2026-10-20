@@ -84,6 +84,8 @@ pub fn set_translator(translator: fn(&str) -> String) {
 
 fn gtk_main() -> glib::ExitCode {
     configure_portable_environment();
+    #[cfg(windows)]
+    install_theme_log_filter();
     #[cfg(target_os = "macos")]
     {
         configure_macos_bundle_environment();
@@ -106,6 +108,26 @@ fn gtk_main() -> glib::ExitCode {
 
     let args: Vec<&'static str> = vec![];
     app.run_with_args(&args)
+}
+
+/// the checkboxes and switches of the bundled theme make GTK print a theme
+/// parser warning for every single one of them; they are expected on Windows
+#[cfg(windows)]
+fn install_theme_log_filter() {
+    glib::log_set_writer_func(|level, fields| {
+        if level == glib::LogLevel::Warning && fields.iter().any(is_theme_parser_warning) {
+            return glib::LogWriterOutput::Handled;
+        }
+        glib::log_writer_default(level, fields)
+    });
+}
+
+#[cfg(windows)]
+fn is_theme_parser_warning(field: &glib::LogField<'_>) -> bool {
+    field.key() == "MESSAGE"
+        && field
+            .value_str()
+            .is_some_and(|message| message.starts_with("Theme parser warning:"))
 }
 
 #[cfg(target_os = "macos")]
