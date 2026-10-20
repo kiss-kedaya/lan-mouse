@@ -10,6 +10,7 @@ mod macos_privacy;
 #[cfg(target_os = "macos")]
 mod macos_status_item;
 mod pairing_window;
+pub mod ui_i18n;
 mod window;
 
 use std::path::Path;
@@ -62,12 +63,12 @@ pub fn run(local_commit: [u8; 8]) -> Result<(), GtkError> {
     let ret = std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024) // https://gitlab.gnome.org/GNOME/gtk/-/commit/52dbb3f372b2c3ea339e879689c1de535ba2c2c3 -> caused crash on windows
         .name("gtk".into())
-        .spawn(gtk_main)
+        .spawn(gtk_entry)
         .unwrap()
         .join()
         .unwrap();
     #[cfg(not(windows))]
-    let ret = gtk_main();
+    let ret = gtk_entry();
 
     match ret {
         glib::ExitCode::SUCCESS => Ok(()),
@@ -75,11 +76,27 @@ pub fn run(local_commit: [u8; 8]) -> Result<(), GtkError> {
     }
 }
 
+/// the language of the user interface, as found by `lan_mouse::i18n`. The
+/// window templates are translated at compile time, one copy per language.
+static LANGUAGE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+/// selects the language of the window templates, called before `run`
+pub fn set_language(language: Option<String>) {
+    let _ = LANGUAGE.set(language);
+}
+
 /// the binary that starts the GUI installs its translation function here
 /// before `run` is called, so the GUI texts follow the selected language
 #[cfg(feature = "i18n")]
 pub fn set_translator(translator: fn(&str) -> String) {
     crate::i18n::set_translator(translator);
+}
+
+/// the resources have to be registered before the templates are opened
+fn gtk_entry() -> glib::ExitCode {
+    gio::resources_register_include!("lan-mouse.gresource").expect("Failed to register resources.");
+    crate::ui_i18n::register(LANGUAGE.get().and_then(|l| l.as_deref()));
+    gtk_main()
 }
 
 fn gtk_main() -> glib::ExitCode {
@@ -91,8 +108,6 @@ fn gtk_main() -> glib::ExitCode {
         configure_macos_bundle_environment();
         install_macos_gtk_log_filter();
     }
-
-    gio::resources_register_include!("lan-mouse.gresource").expect("Failed to register resources.");
 
     let app = Application::builder()
         .application_id("de.feschber.LanMouse")
@@ -466,5 +481,56 @@ fn build_ui(app: &Application) {
     #[cfg(target_os = "macos")]
     if env::var_os("LAN_MOUSE_HIDDEN").is_none() {
         window.present();
+    }
+}
+
+#[cfg(test)]
+mod ui_translation {
+    /// every text of the templates is translated, none stays English
+    #[test]
+    #[cfg(feature = "i18n")]
+    fn templates_are_translated() {
+        crate::ui_i18n::register(Some("zh_CN"));
+        for name in [
+            "window",
+            "pairing_window",
+            "client_row",
+            "authorization_window",
+            "fingerprint_window",
+            "key_row",
+        ] {
+            let path = format!("/de/feschber/LanMouse/{name}.ui");
+            let data = gtk::gio::resources_lookup_data(&path, gtk::gio::ResourceLookupFlags::NONE)
+                .expect("template registered");
+            let text = String::from_utf8_lossy(&data);
+            // commented out properties are no texts
+            let uncommented = {
+                let mut out = String::new();
+                let mut rest = text.as_ref();
+                while let Some(start) = rest.find("<!--") {
+                    out.push_str(&rest[..start]);
+                    match rest[start..].find("-->") {
+                        Some(end) => rest = &rest[start + end + 3..],
+                        None => {
+                            rest = "";
+                            break;
+                        }
+                    }
+                }
+                out.push_str(rest);
+                out
+            };
+            let texts: Vec<&str> = uncommented
+                .split("translatable=\"yes\">")
+                .skip(1)
+                .map(|rest| rest.split('<').next().unwrap_or(""))
+                .filter(|text| !text.trim().is_empty())
+                .collect();
+            let english: Vec<&&str> = texts
+                .iter()
+                .filter(|text| text.chars().all(|c| c.is_ascii()))
+                .collect();
+            assert!(english.is_empty(), "{name}.ui: untranslated {english:?}");
+        }
     }
 }

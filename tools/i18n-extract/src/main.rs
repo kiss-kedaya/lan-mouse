@@ -27,6 +27,17 @@ fn main() {
             collect_ui(&root, &file, &mut sources);
         }
     }
+    // subcommand descriptions of the main binary, they live in attributes
+    for text in [
+        "Lan Mouse commandline interface",
+        "run in daemon mode",
+        "run the lan-mouse service in the foreground",
+        "Runs the lan-mouse service without the GTK frontend, meant for headless machines and scripts.",
+    ] {
+        sources
+            .entry(text.to_owned())
+            .or_insert_with(|| vec!["src/config.rs, lan-mouse-cli/src/lib.rs".to_owned()]);
+    }
     // clap's own labels, written by the command line help of the CLI
     for label in [
         // `Usage:` is translated as the whole help template in the CLI crate
@@ -166,16 +177,34 @@ fn collect_ui(root: &Path, file: &Path, sources: &mut BTreeMap<String, Vec<Strin
         .unwrap_or(file)
         .to_string_lossy()
         .replace('\\', "/");
-    for line in text.lines() {
+    // `translatable="yes">text</attribute>` and `...>` on the next line
+    for (index, line) in text.lines().enumerate() {
         let Some(start) = line.find("translatable=\"yes\">") else {
             continue;
         };
         let rest = &line[start + "translatable=\"yes\">".len()..];
-        let Some(end) = rest.find("</property>") else {
+        let end = rest.find('<').or_else(|| {
+            // the text runs over the end of the line
+            text.lines()
+                .skip(index + 1)
+                .find_map(|next| next.find('<').map(|e| e))
+                .map(|e| rest.len() + 1 + e)
+        });
+        let Some(end) = end else {
             continue;
         };
+        let full: String = std::iter::once(rest)
+            .chain(text.lines().skip(index + 1))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let content = &full[..end];
+        if content.trim().is_empty() || content.trim_start().starts_with("<!--") {
+            continue;
+        }
+        // markup double escapes the ampersand, the parser reads it once
+        let content = content.replace("&#38;", "&");
         sources
-            .entry(xml_unescape(&rest[..end]))
+            .entry(xml_unescape(&content))
             .or_default()
             .push(reference.clone());
     }

@@ -47,6 +47,10 @@ fn main() {
         lan_mouse::config::set_language(std::env::args().nth(i + 1).as_deref());
     }
     lan_mouse::i18n::init();
+    #[cfg(feature = "gtk")]
+    let language = lan_mouse::i18n::requested_language();
+    #[cfg(feature = "gtk")]
+    lan_mouse_gtk::set_language(language);
     lan_mouse_cli::init_command();
 
     if let Err(e) = run() {
@@ -63,7 +67,9 @@ fn run() -> Result<(), LanMouseError> {
             Command::TestEmulation(args) => run_async(emulation_test::run(config, args))?,
             #[cfg(target_os = "linux")]
             Command::TestCapture(args) => run_async(capture_test::run(config, args))?,
-            Command::Cli(cli_args) => run_async(lan_mouse_cli::run(cli_args))?,
+            Command::Cli { command } => {
+                run_async(lan_mouse_cli::run(lan_mouse_cli::CliArgs { command }))?
+            }
             Command::Daemon => {
                 // if daemon is specified we run the service
                 match run_async(run_service(config)) {

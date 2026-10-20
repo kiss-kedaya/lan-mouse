@@ -18,7 +18,6 @@ use thiserror::Error;
 use toml;
 use toml_edit::{self, DocumentMut};
 
-use lan_mouse_cli::CliArgs;
 use lan_mouse_ipc::{DEFAULT_PORT, Position};
 
 use input_event::scancode::{
@@ -132,7 +131,11 @@ pub enum Command {
     #[cfg(target_os = "linux")]
     TestCapture(TestCaptureArgs),
     /// Lan Mouse commandline interface
-    Cli(CliArgs),
+    #[command(name = "cli", next_help_heading = "Commands")]
+    Cli {
+        #[command(subcommand)]
+        command: lan_mouse_cli::CliSubcommand,
+    },
     /// run in daemon mode
     Daemon,
 }

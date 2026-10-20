@@ -210,7 +210,6 @@ impl Service {
     }
 
     fn handle_frontend_request(&mut self, request: Option<Result<FrontendRequest, IpcError>>) {
-        log::debug!("IPCDEBUG handle {:?}", request.is_some());
         let request = match request.expect("frontend listener closed") {
             Ok(r) => r,
             Err(e) => return log::error!("error receiving request: {e}"),

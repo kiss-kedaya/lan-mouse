@@ -38,6 +38,10 @@ msgstr "参数"
 msgid "Authorize"
 msgstr "信任"
 
+#: lan-mouse-gtk/resources/client_row.ui
+msgid "Bottom"
+msgstr "底部（下方）"
+
 #: lan-mouse-gtk/resources/authorization_window.ui
 msgid "Cancel"
 msgstr "取消"
@@ -106,6 +110,14 @@ msgstr "授权"
 msgid "Lan Mouse"
 msgstr "Lan Mouse 键鼠共享"
 
+#: src/config.rs, lan-mouse-cli/src/lib.rs
+msgid "Lan Mouse commandline interface"
+msgstr "Lan Mouse 命令行"
+
+#: lan-mouse-gtk/resources/client_row.ui
+msgid "Left"
+msgstr "左侧"
+
 #: lan-mouse-gtk/resources/window.ui
 msgid "No connections!"
 msgstr "还没有连接"
@@ -166,9 +178,21 @@ msgstr "重新启用"
 msgid "Relaunch"
 msgstr "重新启动"
 
+#: lan-mouse-gtk/resources/client_row.ui
+msgid "Right"
+msgstr "右侧"
+
+#: src/config.rs, lan-mouse-cli/src/lib.rs
+msgid "Runs the lan-mouse service without the GTK frontend, meant for headless machines and scripts."
+msgstr "不带图形界面地运行 lan-mouse 服务，适用于无显示器的机器和脚本。"
+
 #: lan-mouse-gtk/resources/fingerprint_window.ui
 msgid "The certificate fingerprint serves as a unique identifier for your device."
 msgstr "证书指纹是设备的唯一标识。"
+
+#: lan-mouse-gtk/resources/client_row.ui
+msgid "Top"
+msgstr "顶部（上方）"
 
 #: lan-mouse-gtk/resources/window.ui
 msgid "Trusted devices (incoming)"
@@ -185,6 +209,10 @@ msgstr "用法：{usage}\n\n{all-args}"
 #: lan-mouse-gtk/resources/fingerprint_window.ui
 msgid "You can find it under the `General` section of the device you want to connect"
 msgstr "可以在要连接的设备的“常规”一栏中找到它"
+
+#: lan-mouse-gtk/resources/window.ui
+msgid "_Close window"
+msgstr "关闭窗口(_C)"
 
 #: lan-mouse-gtk/src/lib.rs
 msgid "_File"
@@ -255,7 +283,7 @@ msgid "hostname"
 msgstr "主机名"
 
 #: lan-mouse-gtk/resources/window.ui
-msgid "hostname &#38;amp; port"
+msgid "hostname & port"
 msgstr "主机名和端口"
 
 #: lan-mouse-gtk/src/window.rs lan-mouse-gtk/resources/window.ui
@@ -337,6 +365,14 @@ msgstr "解析主机名"
 #: lan-mouse-gtk/resources/key_row.ui
 msgid "revoke authorization"
 msgstr "撤销信任"
+
+#: src/config.rs, lan-mouse-cli/src/lib.rs
+msgid "run in daemon mode"
+msgstr "以后台服务（守护进程）模式运行"
+
+#: src/config.rs, lan-mouse-cli/src/lib.rs
+msgid "run the lan-mouse service in the foreground"
+msgstr "在前台运行 lan-mouse 服务"
 
 #: lan-mouse-gtk/resources/authorization_window.ui lan-mouse-gtk/resources/fingerprint_window.ui
 msgid "sha256 fingerprint"

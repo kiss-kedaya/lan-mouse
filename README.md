@@ -345,7 +345,9 @@ that answered, never one taken from an unsigned packet.
 The GUI and the command line follow the system language, Simplified Chinese is included
 (`LANGUAGE=zh_CN lan-mouse`, or `--language zh_CN`). Translations live in `po/zh_CN.po`
 and are compiled into the binaries by `build.rs`, so no gettext runtime is needed on any
-platform. The texts are extracted from the sources by `./tools/update-po.sh`: it adds new
+platform. The window is a GTK template, which GTK reads at run time; `lan-mouse-gtk`'s build
+script therefore writes a translated copy of every template per language and the frontend
+registers the one of the selected language. The texts are extracted from the sources by `./tools/update-po.sh`: it adds new
 texts untranslated and fails while any of them has no translation.
 
 ## Usage

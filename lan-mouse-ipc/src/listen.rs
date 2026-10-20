@@ -125,13 +125,11 @@ impl Stream for AsyncFrontendListener {
     type Item = Result<FrontendRequest, IpcError>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(Some(Ok(l))) = self.line_streams.poll_next_unpin(cx) {
-            log::debug!("IPCDEBUG line {l:?}");
             let request = serde_json::from_str(l.as_str()).map_err(|e| e.into());
             return Poll::Ready(Some(request));
         }
         let mut sync = false;
         while let Poll::Ready(Ok((stream, _))) = self.listener.poll_accept(cx) {
-            log::debug!("IPCDEBUG accepted");
             let (rx, tx) = tokio::io::split(stream);
             let buf_reader = BufReader::new(rx);
             let lines = buf_reader.lines();

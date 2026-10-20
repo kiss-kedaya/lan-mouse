@@ -35,11 +35,11 @@ pub enum CliError {
 #[command(name = "lan-mouse-cli", about = "LanMouse CLI interface")]
 pub struct CliArgs {
     #[command(subcommand)]
-    command: CliSubcommand,
+    pub command: CliSubcommand,
 }
 
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
-struct Client {
+pub struct Client {
     #[arg(long)]
     hostname: Option<String>,
     #[arg(long)]
@@ -53,7 +53,7 @@ struct Client {
 }
 
 #[derive(Clone, Subcommand, Debug, PartialEq, Eq)]
-enum CliSubcommand {
+pub enum CliSubcommand {
     /// add a new client
     AddClient(Client),
     /// remove an existing client
@@ -194,13 +194,22 @@ pub fn print_localized_help(cmd: clap::Command, bin_name: &str) -> ! {
 /// ids and structure are left untouched.
 fn translate(cmd: clap::Command) -> clap::Command {
     let t = |text: &str| crate::i18n::gettext(text);
+    // a subcommand shows its description above its help, the top level command
+    // prints it through clap on its own instead
     let has_subcommands = cmd.has_subcommands();
-    // the about line is not repeated in the help, clap prints it on its own
-    let mut cmd = if has_subcommands {
-        cmd.bin_name("lan-mouse").about("")
-    } else {
-        cmd
-    };
+    let bin_name = cmd.get_bin_name().map(|b| b.to_string());
+    let mut cmd = cmd;
+    if !has_subcommands {
+        if let Some(description) = cmd.get_long_about().map(|a| a.to_string()) {
+            cmd = cmd.long_about(t(&description));
+        }
+        if let Some(about) = cmd.get_about().map(|a| a.to_string()) {
+            cmd = cmd.about(t(&about));
+        }
+    }
+    if bin_name.is_none() {
+        cmd = cmd.bin_name("lan-mouse");
+    }
     cmd = cmd.help_template(t("Usage: {usage}\n\n{all-args}"));
     let heading: &'static str = Box::leak(
         t(if has_subcommands {
@@ -213,9 +222,6 @@ fn translate(cmd: clap::Command) -> clap::Command {
     cmd = cmd
         .next_help_heading(heading)
         .subcommand_help_heading(heading);
-    if let Some(about) = cmd.get_about().map(|a| a.to_string()) {
-        cmd = cmd.about(t(&about));
-    }
     cmd = cmd.mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
         Some(help) => arg.help(t(&help)),
         None => arg,
@@ -361,7 +367,7 @@ async fn execute(cmd: CliSubcommand) -> Result<(), CliError> {
                             .replace("{id}", &handle.to_string())
                             .replace("{host}", &host)
                             .replace("{port}", &port.to_string())
-                            .replace("{pos}", &crate::i18n::gettext(pos.to_string().as_str()))
+                            .replace("{pos}", &pos.localized())
                             .replace(
                                 "{active}",
                                 &crate::i18n::gettext(if active { "yes" } else { "no" })
