@@ -12,6 +12,7 @@ mod macos_status_item;
 mod pairing_window;
 mod window;
 
+use std::path::Path;
 use std::{env, process, str, sync::OnceLock};
 
 use gtk::CssProvider;
@@ -177,25 +178,28 @@ fn configure_portable_environment() {
         return;
     };
 
-    let share = dir.join("share");
-    if share.is_dir() && env::var_os("XDG_DATA_DIRS").is_none() {
-        env::set_var("XDG_DATA_DIRS", &share);
-        env::set_var("GTK_DATA_PREFIX", dir);
-    }
+    // the package has everything next to the exe: share/, etc/, lib/ and the
+    // GTK DLLs, so the exe is started by a double click like any other program
+    set_if_unset("XDG_DATA_DIRS", &dir.join("share"));
+    set_if_unset("GTK_DATA_PREFIX", dir);
 
     // image loaders, e.g. the SVG loader needed for symbolic icons
     let pixbuf = dir.join("lib").join("gdk-pixbuf-2.0").join("2.10.0");
-    if pixbuf.join("loaders.cache").is_file() && env::var_os("GDK_PIXBUF_MODULE_FILE").is_none() {
-        env::set_var("GDK_PIXBUF_MODULE_FILE", pixbuf.join("loaders.cache"));
+    if pixbuf.join("loaders.cache").is_file() {
+        set_if_unset("GDK_PIXBUF_MODULE_FILE", &pixbuf.join("loaders.cache"));
     }
 
-    let schemas = share.join("glib-2.0").join("schemas");
-    if schemas.is_dir() && env::var_os("GSETTINGS_SCHEMA_DIR").is_none() {
-        env::set_var("GSETTINGS_SCHEMA_DIR", schemas);
+    let schemas = dir.join("share").join("glib-2.0").join("schemas");
+    if schemas.is_dir() {
+        set_if_unset("GSETTINGS_SCHEMA_DIR", &schemas);
     }
 
-    // the loaders are linked against the DLLs in bin, which is not searched
-    // by default on Windows
+    let fonts = dir.join("etc").join("fonts");
+    if fonts.is_dir() {
+        set_if_unset("FONTCONFIG_PATH", &fonts);
+    }
+
+    // old packages kept the DLLs in bin, that directory is searched first
     #[cfg(windows)]
     {
         let bin = dir.join("bin");
@@ -208,6 +212,13 @@ fn configure_portable_environment() {
                 }
             }
         }
+    }
+}
+
+/// sets `name` unless the user configured it already
+fn set_if_unset(name: &str, value: &Path) {
+    if env::var_os(name).is_none() {
+        env::set_var(name, value);
     }
 }
 

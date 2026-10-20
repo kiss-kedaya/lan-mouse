@@ -125,8 +125,21 @@ jobs:
             done
           done
 
+          # start scripts for the command line, both only pass the arguments
+          # through; the package is unpacked flat, so the exe files and the
+          # folders share one directory
+          printf '%s\n' \
+            '@echo off' \
+            'rem Lan Mouse command line' \
+            '"%~dp0lan-mouse-cli.exe" %*' > $out/lan-mouse-cli.cmd
+          printf '%s\n' \
+            'rem Lan Mouse command line' \
+            '"%~dp0lan-mouse-cli.exe" %*' > $out/lan-mouse-cli.ps1
+          printf '%s\n' \
+            'rem Lan Mouse service in the foreground (no window)' \
+            '"%~dp0daemon.exe" %*' > $out/daemon.cmd
           cp README.md README.windows.txt $out/
-          zip -qr lan-mouse-windows-x86_64.zip $out
+          ( cd $out && zip -qr ../lan-mouse-windows-x86_64.zip . )
 
       - uses: actions/upload-artifact@v6
         with:
@@ -314,7 +327,7 @@ jobs:
             echo
             echo "| System | Package | Notes |"
             echo "| --- | --- | --- |"
-            echo "| Windows 10/11 x86_64 | \`lan-mouse-windows-x86_64.zip\` | unpack, start \`lan-mouse.exe\`; all libraries are included |"
+            echo "| Windows 10/11 x86_64 | \`lan-mouse-windows-x86_64.zip\` | unpack, double click \`lan-mouse.exe\`; command line: run \`lan-mouse-cli.cmd\` in that folder; all libraries are included |"
             echo "| macOS (Apple Silicon) | \`lan-mouse-macos-arm64.zip\` | open \`Lan Mouse.app\` |"
             echo "| macOS (Intel) | \`lan-mouse-macos-x86_64.zip\` | open \`Lan Mouse.app\` |"
             echo "| Linux x86_64 | \`lan-mouse-linux-x86_64.tar.gz\` | unpack, start \`./lan-mouse\`; GTK 4 and libadwaita are needed |"
