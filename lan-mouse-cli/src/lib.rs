@@ -444,6 +444,7 @@ async fn execute(cmd: CliSubcommand) -> Result<(), CliError> {
                     | FrontendEvent::Error(_)
                     | FrontendEvent::CaptureStatus(_)
                     | FrontendEvent::EmulationStatus(_)
+                    | FrontendEvent::StatusReason { .. }
                     | FrontendEvent::AuthorizedUpdated(_)
                     | FrontendEvent::PublicKeyFingerprint(_)
                     | FrontendEvent::DeviceConnected { .. }

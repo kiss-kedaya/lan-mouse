@@ -281,6 +281,8 @@ pub enum FrontendEvent {
     CaptureStatus(Status),
     /// emulation status
     EmulationStatus(Status),
+    /// why capture or emulation is disabled
+    StatusReason { capture: bool, reason: String },
     /// authorized public key fingerprints have been updated
     AuthorizedUpdated(HashMap<String, String>),
     /// public key fingerprint of this device

@@ -63,6 +63,11 @@ impl Capture for WindowsInputCapture {
     }
 }
 
+/// whether Windows reports at least one display for this session
+pub(crate) fn displays_available() -> bool {
+    event_thread::screenspace().is_some()
+}
+
 impl WindowsInputCapture {
     pub(crate) fn new() -> Self {
         // high-dpi mice generate motion far faster than the event loop drains

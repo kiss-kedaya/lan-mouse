@@ -448,6 +448,9 @@ fn build_ui(app: &Application) {
                     FrontendEvent::Enumerate(clients) => window.update_client_list(clients),
                     FrontendEvent::PortChanged(port, msg) => window.update_port(port, msg),
                     FrontendEvent::CaptureStatus(s) => window.set_capture(s.into()),
+                    FrontendEvent::StatusReason { capture, reason } => {
+                        window.set_status_reason(capture, reason)
+                    }
                     FrontendEvent::EmulationStatus(s) => window.set_emulation(s.into()),
                     FrontendEvent::AuthorizedUpdated(keys) => window.set_authorized_keys(keys),
                     FrontendEvent::PublicKeyFingerprint(fp) => window.set_pk_fp(&fp),

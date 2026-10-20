@@ -62,6 +62,9 @@ pub struct Service {
     resolver: DnsResolver,
     /// frontend listener
     frontend_listener: AsyncFrontendListener,
+    /// why capture / emulation are disabled, `None` once they work
+    capture_reason: Option<String>,
+    emulation_reason: Option<String>,
     /// authorized public key sha256 fingerprints
     authorized_keys: Arc<RwLock<HashMap<String, String>>>,
     /// (outgoing) client information
@@ -168,6 +171,8 @@ impl Service {
             pending_frontend_events: Default::default(),
             capture_status: Default::default(),
             emulation_status: Default::default(),
+            capture_reason: None,
+            emulation_reason: None,
             incoming_conn_info: Default::default(),
             incoming_conns: Default::default(),
             next_trigger_handle: 0,
@@ -259,7 +264,26 @@ impl Service {
                 self.save_config();
             }
             FrontendRequest::ResolveDns(handle) => self.resolve(handle),
-            FrontendRequest::Sync => self.sync_frontend(),
+            FrontendRequest::Sync => {
+                self.sync_frontend();
+                // the window opened after the status was last sent
+                if self.capture_status == Status::Disabled {
+                    if let Some(reason) = self.capture_reason.clone() {
+                        self.notify_frontend(FrontendEvent::StatusReason {
+                            capture: true,
+                            reason,
+                        });
+                    }
+                }
+                if self.emulation_status == Status::Disabled {
+                    if let Some(reason) = self.emulation_reason.clone() {
+                        self.notify_frontend(FrontendEvent::StatusReason {
+                            capture: false,
+                            reason,
+                        });
+                    }
+                }
+            }
             FrontendRequest::RemoveAuthorizedKey(key) => {
                 self.remove_authorized_key(key);
                 self.save_config();
@@ -490,13 +514,19 @@ impl Service {
                 self.emulation_status = Status::Disabled;
                 self.notify_frontend(FrontendEvent::EmulationStatus(self.emulation_status));
                 if !reason.is_empty() {
-                    self.notify_frontend(FrontendEvent::Error(format!(
+                    let reason = format!(
                         "{}: {reason}",
                         crate::i18n::gettext("input emulation could not be started")
-                    )));
+                    );
+                    self.emulation_reason = Some(reason.clone());
+                    self.notify_frontend(FrontendEvent::StatusReason {
+                        capture: false,
+                        reason,
+                    });
                 }
             }
             EmulationEvent::EmulationEnabled => {
+                self.emulation_reason = None;
                 self.emulation_status = Status::Enabled;
                 self.notify_frontend(FrontendEvent::EmulationStatus(self.emulation_status));
             }
@@ -528,13 +558,19 @@ impl Service {
                 self.capture_status = Status::Disabled;
                 self.notify_frontend(FrontendEvent::CaptureStatus(self.capture_status));
                 if !reason.is_empty() {
-                    self.notify_frontend(FrontendEvent::Error(format!(
+                    let reason = format!(
                         "{}: {reason}",
                         crate::i18n::gettext("input capture could not be started")
-                    )));
+                    );
+                    self.capture_reason = Some(reason.clone());
+                    self.notify_frontend(FrontendEvent::StatusReason {
+                        capture: true,
+                        reason,
+                    });
                 }
             }
             ICaptureEvent::CaptureEnabled => {
+                self.capture_reason = None;
                 self.capture_status = Status::Enabled;
                 self.notify_frontend(FrontendEvent::CaptureStatus(self.capture_status));
             }

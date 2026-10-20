@@ -356,6 +356,11 @@ async fn create_backend(
     Box<dyn Capture<Item = Result<(Position, CaptureEvent), CaptureError>>>,
     CaptureCreationError,
 > {
+    // the hooks place the cursor at screen edges, which needs a display
+    #[cfg(windows)]
+    if !windows::displays_available() {
+        return Err(CaptureCreationError::NoDisplays);
+    }
     match backend {
         #[cfg(libei)]
         Backend::InputCapturePortal => Ok(Box::new(libei::LibeiInputCapture::new().await?)),

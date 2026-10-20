@@ -27,6 +27,12 @@ fn main() {
             collect_ui(&root, &file, &mut sources);
         }
     }
+    // messages written in an error attribute, they are not calls
+    for text in ["no display is attached to this Windows session (monitor switched on and connected?)"] {
+        sources
+            .entry(text.to_owned())
+            .or_insert_with(|| vec!["input-capture/src/error.rs".to_owned()]);
+    }
     // subcommand descriptions of the main binary, they live in attributes
     for text in [
         "Lan Mouse commandline interface",

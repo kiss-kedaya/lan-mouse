@@ -64,7 +64,10 @@ pub struct Window {
     pub frontend_request_writer: RefCell<Option<FrontendRequestWriter>>,
     pub port: Cell<u16>,
     pub capture_active: Cell<bool>,
+    /// why capture is disabled, shown in the row when there is a reason
+    pub capture_reason: std::cell::RefCell<Option<String>>,
     pub emulation_active: Cell<bool>,
+    pub emulation_reason: std::cell::RefCell<Option<String>>,
     pub authorization_window: RefCell<Option<AuthorizationWindow>>,
     /// current pairing code of this device
     pub pairing_code: RefCell<Option<String>>,

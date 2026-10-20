@@ -460,11 +460,29 @@ impl Window {
 
     pub(super) fn set_capture(&self, active: bool) {
         self.imp().capture_active.replace(active);
+        if active {
+            self.imp().capture_reason.replace(None);
+        }
         self.update_capture_emulation_status();
     }
 
     pub(super) fn set_emulation(&self, active: bool) {
         self.imp().emulation_active.replace(active);
+        if active {
+            self.imp().emulation_reason.replace(None);
+        }
+        self.update_capture_emulation_status();
+    }
+
+    /// the reason a capture or emulation backend could not be started,
+    /// shown below the status until it works
+    pub(super) fn set_status_reason(&self, capture: bool, reason: String) {
+        let imp = self.imp();
+        if capture {
+            imp.capture_reason.replace(Some(reason));
+        } else {
+            imp.emulation_reason.replace(Some(reason));
+        }
         self.update_capture_emulation_status();
     }
 
@@ -497,11 +515,24 @@ impl Window {
 
         #[cfg(not(target_os = "macos"))]
         {
-            self.imp().capture_status_row.set_visible(!capture);
-            self.imp().emulation_status_row.set_visible(!emulation);
-            self.imp()
-                .capture_emulation_group
+            let imp = self.imp();
+            imp.capture_status_row.set_visible(!capture);
+            imp.emulation_status_row.set_visible(!emulation);
+            imp.capture_emulation_group
                 .set_visible(!capture || !emulation);
+            if !capture {
+                let reason = imp.capture_reason.borrow().clone().unwrap_or_else(|| {
+                    crate::i18n::gettext("required for outgoing and incoming connections")
+                });
+                imp.capture_status_row.set_subtitle(&reason);
+            }
+            if !emulation {
+                let reason =
+                    imp.emulation_reason.borrow().clone().unwrap_or_else(|| {
+                        crate::i18n::gettext("required for incoming connections")
+                    });
+                imp.emulation_status_row.set_subtitle(&reason);
+            }
         }
     }
 

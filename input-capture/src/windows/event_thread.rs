@@ -561,33 +561,11 @@ fn enumerate_displays(display_rects: &mut Vec<RECT>) {
 }
 
 /// The display list is empty: on a session that is not attached to the
-/// console Windows reports no screens, and the hooks cannot place the cursor
-/// at a screen edge. Tell the user instead of leaving the window silent.
+/// console Windows reports no screens (or only a placeholder), and the hooks
+/// cannot place the cursor at a screen edge. Tell the user instead of leaving
+/// the window silent.
 fn warn_no_displays() {
     log::warn!("no displays are attached to this session, input capture cannot start");
-    #[cfg(windows)]
-    {
-        use windows::Win32::UI::WindowsAndMessaging::{MB_ICONWARNING, MB_OK, MessageBoxW};
-        use windows::core::HSTRING;
-        // shown on the capture thread: it owns the message queue, a modal box
-        // keeps the hooks running while it is open
-        unsafe {
-            let text = HSTRING::from(
-                "Windows does not report any screen for this session, so the mouse \
-                 cannot be captured at the screen edges.\n\nThis happens when the \
-                 session runs without a monitor (remote access while the screen is \
-                 off, a locked or disconnected remote desktop session).\n\nKeep a \
-                 monitor connected and unlocked, or press Win+P and choose \
-                 \"Duplicate\" / \"Extend\", then click re-enable in Lan Mouse.",
-            );
-            MessageBoxW(
-                None,
-                &text,
-                &HSTRING::from("Lan Mouse"),
-                MB_OK | MB_ICONWARNING,
-            );
-        }
-    }
 }
 
 fn update_clients(request: ClientUpdate) {

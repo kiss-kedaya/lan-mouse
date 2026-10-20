@@ -63,6 +63,11 @@ pub enum CaptureError {
 pub enum CaptureCreationError {
     #[error("no backend available")]
     NoAvailableBackend,
+    #[cfg(windows)]
+    #[error(
+        "Windows reports no display for this session (is a monitor connected and switched on?)"
+    )]
+    NoDisplays,
     #[cfg(libei)]
     #[error("error creating input-capture-portal backend: `{0}`")]
     Libei(#[from] LibeiCaptureCreationError),

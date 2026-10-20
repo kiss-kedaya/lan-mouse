@@ -318,6 +318,10 @@ msgstr "局域网中没有发现设备"
 msgid "no devices registered!"
 msgstr "还没有登记设备"
 
+#: input-capture/src/error.rs
+msgid "no display is attached to this Windows session (monitor switched on and connected?)"
+msgstr "这个 Windows 会话没有连接任何显示器（显示器是否已打开并接好？）"
+
 #: lan-mouse-gtk/resources/window.ui
 msgid "not available yet"
 msgstr "尚未生成"
@@ -358,11 +362,11 @@ msgstr "屏幕方向"
 msgid "relaunch required"
 msgstr "需要重新启动"
 
-#: lan-mouse-gtk/resources/window.ui
+#: lan-mouse-gtk/src/window.rs lan-mouse-gtk/resources/window.ui
 msgid "required for incoming connections"
 msgstr "接收连接需要它"
 
-#: lan-mouse-gtk/resources/window.ui
+#: lan-mouse-gtk/src/window.rs lan-mouse-gtk/resources/window.ui
 msgid "required for outgoing and incoming connections"
 msgstr "发送和接收连接都需要它"
 
