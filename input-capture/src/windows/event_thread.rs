@@ -38,7 +38,8 @@ use super::{CaptureEvent, Position, display_util};
 pub(crate) struct EventThread {
     request_buffer: Arc<Mutex<Vec<ClientUpdate>>>,
     thread: Option<thread::JoinHandle<()>>,
-    thread_id: u32,
+    /// filled in by the thread once its message queue exists
+    thread_id: Arc<(Condvar, Mutex<Option<u32>>)>,
 }
 
 impl EventThread {
@@ -47,7 +48,13 @@ impl EventThread {
         bind_tx: Sender<(Position, CaptureEvent)>,
     ) -> Self {
         let request_buffer = Default::default();
-        let (thread, thread_id) = start(event_tx, Arc::clone(&request_buffer), bind_tx);
+        let thread_id = Arc::new((Condvar::new(), Mutex::new(None)));
+        let thread = start(
+            event_tx,
+            Arc::clone(&request_buffer),
+            bind_tx,
+            Arc::clone(&thread_id),
+        );
         Self {
             request_buffer,
             thread: Some(thread),
@@ -84,8 +91,17 @@ impl EventThread {
     }
 
     fn signal(&self, event_type: RequestType) {
-        let id = self.thread_id;
-        unsafe { PostThreadMessageW(id, WM_USER, WPARAM(event_type as usize), LPARAM(0)).unwrap() };
+        // no id yet: the thread failed to start, nothing can be signalled
+        let Some(id) = *self.thread_id.1.lock().unwrap() else {
+            return;
+        };
+        // a failed post is not fatal (the thread may have ended already),
+        // panicking here would take the whole program down
+        if let Err(e) =
+            unsafe { PostThreadMessageW(id, WM_USER, WPARAM(event_type as usize), LPARAM(0)) }
+        {
+            log::debug!("could not post to the capture thread: {e}");
+        }
     }
 }
 
@@ -182,25 +198,16 @@ fn get_msg() -> Option<MSG> {
     }
 }
 
+/// runs the message loop in its own thread. The thread id is published by
+/// the thread itself right before the loop starts, between reading it here
+/// and the first message it would simply be invalid
 fn start(
     event_tx: Sender<(Position, CaptureEvent)>,
     request_buffer: Arc<Mutex<Vec<ClientUpdate>>>,
     bind_tx: Sender<(Position, CaptureEvent)>,
-) -> (thread::JoinHandle<()>, u32) {
-    /* condition variable to wait for thead id */
-    let thread_id = Arc::new((Condvar::new(), Mutex::new(None)));
-    let thread_id_ = Arc::clone(&thread_id);
-
-    let msg_thread =
-        thread::spawn(move || start_routine(thread_id_, event_tx, request_buffer, bind_tx));
-
-    /* wait for thread to set its id */
-    let (cond, thread_id) = &*thread_id;
-    let mut thread_id = thread_id.lock().unwrap();
-    while (*thread_id).is_none() {
-        thread_id = cond.wait(thread_id).expect("channel closed");
-    }
-    (msg_thread, thread_id.expect("thread id"))
+    thread_id: Arc<(Condvar, Mutex<Option<u32>>)>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || start_routine(thread_id, event_tx, request_buffer, bind_tx))
 }
 
 fn start_routine(
@@ -210,14 +217,6 @@ fn start_routine(
     bind_tx: Sender<(Position, CaptureEvent)>,
 ) {
     EVENT_TX.replace(Some(event_tx));
-    /* communicate thread id */
-    {
-        let (cnd, mtx) = &*ready;
-        let mut ready = mtx.lock().unwrap();
-        *ready = Some(unsafe { GetCurrentThreadId() });
-        cnd.notify_one();
-    }
-
     let mouse_proc: HOOKPROC = Some(mouse_proc);
     let kybrd_proc: HOOKPROC = Some(kybrd_proc);
     let window_proc: WNDPROC = Some(window_proc);
@@ -288,6 +287,15 @@ fn start_routine(
             None,
         )
         .expect("CreateWindowExW");
+    }
+
+    /* the queue exists from the first call into the message api on, publish
+    the id now */
+    {
+        let (cnd, mtx) = &*ready;
+        let mut ready = mtx.lock().unwrap();
+        *ready = Some(unsafe { GetCurrentThreadId() });
+        cnd.notify_one();
     }
 
     /* run message loop */
