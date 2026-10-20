@@ -24,9 +24,18 @@ pub fn init() {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        // the previous run is kept once, for a crash that is reported late
-        let _ = std::fs::rename(&path, path.with_extension("log.1"));
-        if let Ok(file) = std::fs::File::create(&path) {
+        // The frontend and its service both log, and each would start at the
+        // beginning of the file: open in append mode so their lines are kept.
+        // Rotating by renaming fails while the other process holds the file
+        // open, which is fine: the log only grows.
+        if std::fs::metadata(&path).is_ok_and(|m| m.len() > 4 * 1024 * 1024) {
+            let _ = std::fs::rename(&path, path.with_extension("log.1"));
+        }
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let file = std::sync::Mutex::new(file);
             // the file is the place to look when something does not work, so
             // it always holds the debug level messages
