@@ -175,19 +175,33 @@ pub fn translated_command(cmd: clap::Command) -> clap::Command {
     translate(cmd)
 }
 
-/// clap's fixed labels (Usage:, Commands:, Arguments:, Options:) follow the
-/// language. Ordering of arguments and subcommands is left untouched.
-fn translate_labels(cmd: clap::Command) -> clap::Command {
+/// shows the help of `cmd` translated. `cmd` needs a binary name of its own,
+/// clap refuses to print the help of the main command otherwise; its texts
+/// are the same and already translated by the caller.
+pub fn print_localized_help(cmd: clap::Command, bin_name: &str) -> ! {
+    let mut cmd = if cmd.get_bin_name().is_none() {
+        let name: &'static str = Box::leak(bin_name.to_owned().into_boxed_str());
+        cmd.bin_name(name)
+    } else {
+        cmd
+    };
+    cmd.print_help().ok();
+    std::process::exit(0);
+}
+
+/// translate the texts of clap's fixed labels (Usage:, Commands:, Options:),
+/// of the help and about texts of `cmd` and of all its subcommands. Names,
+/// ids and structure are left untouched.
+fn translate(cmd: clap::Command) -> clap::Command {
     let t = |text: &str| crate::i18n::gettext(text);
     let has_subcommands = cmd.has_subcommands();
-    // the about line is not repeated here: it is shown by the caller
-    let cmd = if has_subcommands {
+    // the about line is not repeated in the help, clap prints it on its own
+    let mut cmd = if has_subcommands {
         cmd.bin_name("lan-mouse").about("")
     } else {
         cmd
     };
-    let mut cmd = cmd.help_template(t("Usage: {usage}\n\n{all-args}"));
-    // the default subcommand heading is "Commands", passed in from the caller
+    cmd = cmd.help_template(t("Usage: {usage}\n\n{all-args}"));
     let heading: &'static str = Box::leak(
         t(if has_subcommands {
             "Commands"
@@ -199,67 +213,21 @@ fn translate_labels(cmd: clap::Command) -> clap::Command {
     cmd = cmd
         .next_help_heading(heading)
         .subcommand_help_heading(heading);
-    // clap writes its own labels; they are replaced after rendering instead
-    let ids: Vec<String> = cmd
-        .get_arguments()
-        .map(|a| a.get_id().to_string())
-        .collect();
-    for id in ids {
-        let help = cmd
-            .get_arguments()
-            .find(|a| a.get_id() == id.as_str())
-            .and_then(|a| a.get_help().map(|h| h.to_string()));
-        let help = help.map(|h| t(&h));
-        cmd = cmd.mut_arg(id, |arg| match help {
-            Some(help) => arg.help(help),
-            None => arg,
-        });
-    }
-    let names: Vec<String> = cmd
-        .get_subcommands()
-        .map(|s| s.get_name().to_owned())
-        .collect();
-    for name in names {
-        if let Some(sub) = cmd.find_subcommand(&name) {
-            let taken = translate_labels(sub.clone());
-            if let Some(slot) = cmd.find_subcommand_mut(&name) {
-                *slot = taken;
-            }
-        }
-    }
-    cmd
-}
-
-/// replace about / help texts with their translations (the English text is
-/// the message id). The command is rebuilt step by step from its own parts,
-/// so names, ids and structure are kept exactly as declared; it is built once
-/// per process because `std::mem::take` leaves the source invalidated.
-fn translate(cmd: clap::Command) -> clap::Command {
-    let t = |text: &str| crate::i18n::gettext(text);
-    let cmd = translate_labels(cmd);
-    // texts are changed in place: names, ids and arguments stay exactly as
-    // declared by the derive, replacing a command would reset its name
-    let mut cmd = cmd;
     if let Some(about) = cmd.get_about().map(|a| a.to_string()) {
         cmd = cmd.about(t(&about));
     }
-    translate_help(cmd)
-}
-
-/// translate the help text of every argument, recursively
-fn translate_help(cmd: clap::Command) -> clap::Command {
-    let t = |text: &str| crate::i18n::gettext(text);
-    let mut cmd = cmd.mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
+    cmd = cmd.mut_args(|arg| match arg.get_help().map(|h| h.to_string()) {
         Some(help) => arg.help(t(&help)),
         None => arg,
     });
+    // subcommands keep their names, only their texts are replaced
     let names: Vec<String> = cmd
         .get_subcommands()
         .map(|s| s.get_name().to_owned())
         .collect();
     for name in names {
         let sub = cmd.find_subcommand(&name).cloned().expect("subcommand");
-        let sub = translate_help(sub);
+        let sub = translate(sub);
         if let Some(slot) = cmd.find_subcommand_mut(&name) {
             *slot = sub;
         }

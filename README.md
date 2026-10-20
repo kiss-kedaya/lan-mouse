@@ -343,9 +343,10 @@ that answered, never one taken from an unsigned packet.
 ### Frontend language
 
 The GUI and the command line follow the system language, Simplified Chinese is included
-(`LAN_MOUSE_LOG_LEVEL=info LANG=zh_CN.UTF-8 lan-mouse-cli list`). Translations live in `po/`
-and are compiled into `share/locale` next to the executable at build time (needs `msgfmt`
-from gettext, otherwise the original English texts are used).
+(`LANGUAGE=zh_CN lan-mouse`, or `--language zh_CN`). Translations live in `po/zh_CN.po`
+and are compiled into the binaries by `build.rs`, so no gettext runtime is needed on any
+platform. The texts are extracted from the sources by `./tools/update-po.sh`: it adds new
+texts untranslated and fails while any of them has no translation.
 
 ## Usage
 <details>

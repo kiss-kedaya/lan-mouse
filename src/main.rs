@@ -47,8 +47,6 @@ fn main() {
         lan_mouse::config::set_language(std::env::args().nth(i + 1).as_deref());
     }
     lan_mouse::i18n::init();
-    #[cfg(all(feature = "gtk", feature = "i18n"))]
-    lan_mouse_gtk::set_translator(lan_mouse::i18n::gettext);
     lan_mouse_cli::init_command();
 
     if let Err(e) = run() {

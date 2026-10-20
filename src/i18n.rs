@@ -60,10 +60,23 @@ pub fn init() {
     };
     log::debug!("language: {language}");
     let _ = LANGUAGE.set(Some(language));
-    // the IPC crate builds some texts itself (connection errors, positions)
+    install();
+}
+
+/// hands the translation function to the other crates; called after the
+/// language is known, whichever binary is running
+#[cfg(feature = "i18n")]
+fn install() {
+    // the IPC, CLI and GTK crates build texts themselves (connection errors,
+    // positions, the command line help, the window)
     lan_mouse_ipc::set_translator(gettext);
     lan_mouse_cli::i18n::set_translator(gettext);
+    #[cfg(feature = "gtk")]
+    lan_mouse_gtk::set_translator(gettext);
 }
+
+#[cfg(not(feature = "i18n"))]
+fn install() {}
 
 #[cfg(not(feature = "i18n"))]
 pub fn init() {

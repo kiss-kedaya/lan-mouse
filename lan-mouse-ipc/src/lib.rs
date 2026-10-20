@@ -98,8 +98,8 @@ fn gettext(message: &str) -> String {
     message.to_owned()
 }
 
-/// translation function installed by the main crate (see `lan_mouse::i18n`)
-/// localized text of the current translation catalogue
+/// localized text of the current translation catalogue (the function is
+/// installed by the main crate, see `lan_mouse::i18n`)
 pub fn gettext_text(message: &str) -> String {
     crate::gettext(message)
 }

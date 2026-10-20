@@ -1,4 +1,5 @@
 /target
+/tools/i18n-extract/target
 .gdbinit
 .idea/
 .vs/

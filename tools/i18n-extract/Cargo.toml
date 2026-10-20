@@ -1,0 +1,10 @@
+[package]
+name = "i18n-extract"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "regenerates po/zh_CN.po: new message ids are added untranslated, known ones are kept"
+
+[dependencies]
+
+[workspace]

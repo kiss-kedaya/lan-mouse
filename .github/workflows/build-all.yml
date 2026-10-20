@@ -208,6 +208,8 @@ jobs:
           cargo test -p lan-mouse-proto
       - name: Formatting
         run: cargo fmt --all -- --check
+      - name: Translations
+        run: ./tools/update-po.sh && git diff --exit-code po/
       - name: Package
         run: |
           out=lan-mouse-linux-x86_64
