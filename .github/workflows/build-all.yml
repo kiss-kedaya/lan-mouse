@@ -118,7 +118,7 @@ jobs:
             file=$(sed -n "${i}p" $queue)
             # the dependencies are collected first: a pipeline runs its parts
             # in a subshell, their writes to the queue would be lost
-            deps=$(objdump -p "$file" | sed -n 's/^ *DLL Name: //p' | tr -d '\r')
+            deps=$(objdump -p "$file" | sed -n 's/DLL Name: //p' | tr -d '\r')
             for dll in $deps; do
               if ! grep -qix "$dll" $seen && [ -f "$prefix/bin/$dll" ]; then
                 echo "$dll" >> $seen
