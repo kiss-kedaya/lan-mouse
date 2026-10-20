@@ -358,8 +358,13 @@ async fn create_backend(
 > {
     // the hooks place the cursor at screen edges, which needs a display
     #[cfg(windows)]
-    if !windows::displays_available() {
-        return Err(CaptureCreationError::NoDisplays);
+    {
+        log::info!("checking the displays of this session");
+        if !windows::displays_available() {
+            log::warn!("no display is reported for this session");
+            return Err(CaptureCreationError::NoDisplays);
+        }
+        log::info!("displays available, starting the windows capture backend");
     }
     match backend {
         #[cfg(libei)]

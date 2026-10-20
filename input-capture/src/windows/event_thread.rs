@@ -169,6 +169,13 @@ pub(crate) fn screenspace() -> Option<Rect> {
     refresh_screenspace()
 }
 
+/// whether the session has a display that can be captured
+pub(crate) fn has_display() -> bool {
+    let has = screenspace().is_some();
+    log::info!("display check from the service thread: {has}");
+    has
+}
+
 /// warp the (hidden) local cursor to a position and report it once to the
 /// peer as absolute position. The position is clamped into screenspace.
 pub(crate) fn warp(x: f64, y: f64) {

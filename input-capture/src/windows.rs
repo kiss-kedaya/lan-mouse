@@ -65,7 +65,7 @@ impl Capture for WindowsInputCapture {
 
 /// whether Windows reports at least one display for this session
 pub(crate) fn displays_available() -> bool {
-    event_thread::screenspace().is_some()
+    event_thread::has_display()
 }
 
 impl WindowsInputCapture {
