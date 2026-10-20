@@ -57,6 +57,16 @@ pub fn try_connect() -> Result<(FrontendEventReader, FrontendRequestWriter), Con
     make_connection(rx)
 }
 
+/// like [`try_connect`], but returns `None` when nothing listens instead of
+/// an error; the caller then starts a service of its own
+pub fn try_connect_opt() -> Option<(FrontendEventReader, FrontendRequestWriter)> {
+    #[cfg(unix)]
+    let rx = UnixStream::connect(crate::default_socket_path().ok()?).ok()?;
+    #[cfg(windows)]
+    let rx = TcpStream::connect("127.0.0.1:5252").ok()?;
+    make_connection(rx).ok()
+}
+
 pub fn connect() -> Result<(FrontendEventReader, FrontendRequestWriter), ConnectionError> {
     let rx = wait_for_service()?;
     make_connection(rx)

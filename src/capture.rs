@@ -29,8 +29,8 @@ pub(crate) struct Capture {
 pub(crate) enum ICaptureEvent {
     /// a client was entered
     CaptureBegin(CaptureHandle),
-    /// capture disabled
-    CaptureDisabled,
+    /// capture disabled, with the reason it could not be started
+    CaptureDisabled(String),
     /// capture disabled
     CaptureEnabled,
     /// A (new) client was entered.
@@ -316,14 +316,23 @@ impl CaptureTask {
     async fn do_capture(&mut self) -> Result<(), InputCaptureError> {
         /* allow cancelling capture request */
         let mut capture = tokio::select! {
-            r = InputCapture::new(self.backend) => r?,
+            r = InputCapture::new(self.backend) => match r {
+                Ok(capture) => capture,
+                Err(e) => {
+                    // re-enabling after a failure shows the reason again
+                    self.event_tx
+                        .send(ICaptureEvent::CaptureDisabled(e.to_string()))
+                        .expect("channel closed");
+                    return Err(e.into());
+                }
+            },
             _ = self.cancellation_token.cancelled() => return Ok(()),
         };
 
         let _capture_guard = DropGuard::new(
             self.event_tx.clone(),
             ICaptureEvent::CaptureEnabled,
-            ICaptureEvent::CaptureDisabled,
+            ICaptureEvent::CaptureDisabled(String::new()),
         );
 
         self.sent_geometry = None;

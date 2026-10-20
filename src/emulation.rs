@@ -54,8 +54,8 @@ pub(crate) enum EmulationEvent {
     },
     /// the port of the listener has changed
     PortChanged(Result<u16, ListenerCreationError>),
-    /// emulation was disabled
-    EmulationDisabled,
+    /// emulation was disabled, with the reason it could not be started
+    EmulationDisabled(String),
     /// emulation was enabled
     EmulationEnabled,
     /// capture should be released
@@ -371,7 +371,7 @@ impl EmulationProxy {
         if let EmulationEvent::EmulationEnabled = event {
             self.emulation_active.replace(true);
         }
-        if let EmulationEvent::EmulationDisabled = event {
+        if let EmulationEvent::EmulationDisabled(_) = event {
             self.emulation_active.replace(false);
         }
         event
@@ -482,6 +482,9 @@ impl EmulationTask {
         loop {
             if let Err(e) = self.do_emulation(&on_ready).await {
                 log::warn!("input emulation exited: {e}");
+                let _ = self
+                    .event_tx
+                    .send(EmulationEvent::EmulationDisabled(e.to_string()));
             }
             if self.exit_requested.get() {
                 break;
@@ -516,7 +519,7 @@ impl EmulationTask {
         let _emulation_guard = DropGuard::new(
             self.event_tx.clone(),
             EmulationEvent::EmulationEnabled,
-            EmulationEvent::EmulationDisabled,
+            EmulationEvent::EmulationDisabled(String::new()),
         );
 
         // create active handles

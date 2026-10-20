@@ -286,9 +286,17 @@ msgstr "主机名"
 msgid "hostname & port"
 msgstr "主机名和端口"
 
+#: src/service.rs
+msgid "input capture could not be started"
+msgstr "无法启动输入捕获"
+
 #: lan-mouse-gtk/src/window.rs lan-mouse-gtk/resources/window.ui
 msgid "input capture is disabled"
 msgstr "输入捕获已停用"
+
+#: src/service.rs
+msgid "input emulation could not be started"
+msgstr "无法启动输入模拟"
 
 #: lan-mouse-gtk/resources/window.ui
 msgid "input emulation is disabled"

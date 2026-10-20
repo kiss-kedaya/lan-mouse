@@ -486,9 +486,15 @@ impl Service {
                 Err(e) => self
                     .notify_frontend(FrontendEvent::PortChanged(self.port, Some(format!("{e}")))),
             },
-            EmulationEvent::EmulationDisabled => {
+            EmulationEvent::EmulationDisabled(reason) => {
                 self.emulation_status = Status::Disabled;
                 self.notify_frontend(FrontendEvent::EmulationStatus(self.emulation_status));
+                if !reason.is_empty() {
+                    self.notify_frontend(FrontendEvent::Error(format!(
+                        "{}: {reason}",
+                        crate::i18n::gettext("input emulation could not be started")
+                    )));
+                }
             }
             EmulationEvent::EmulationEnabled => {
                 self.emulation_status = Status::Enabled;
@@ -518,9 +524,15 @@ impl Service {
     fn handle_capture_event(&mut self, event: ICaptureEvent) {
         match event {
             ICaptureEvent::CaptureBegin(handle) => self.on_capture_begin(handle),
-            ICaptureEvent::CaptureDisabled => {
+            ICaptureEvent::CaptureDisabled(reason) => {
                 self.capture_status = Status::Disabled;
                 self.notify_frontend(FrontendEvent::CaptureStatus(self.capture_status));
+                if !reason.is_empty() {
+                    self.notify_frontend(FrontendEvent::Error(format!(
+                        "{}: {reason}",
+                        crate::i18n::gettext("input capture could not be started")
+                    )));
+                }
             }
             ICaptureEvent::CaptureEnabled => {
                 self.capture_status = Status::Enabled;

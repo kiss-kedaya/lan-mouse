@@ -70,6 +70,14 @@ pub fn run(local_commit: [u8; 8]) -> Result<(), GtkError> {
     #[cfg(not(windows))]
     let ret = gtk_entry();
 
+    // the window is gone: its service has nothing to do anymore
+    PROCESS_CHILD.with(|child| {
+        if let Some(mut child) = child.borrow_mut().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    });
+
     match ret {
         glib::ExitCode::SUCCESS => Ok(()),
         e => Err(GtkError::NonZeroExitCode(e.value())),
@@ -79,6 +87,12 @@ pub fn run(local_commit: [u8; 8]) -> Result<(), GtkError> {
 /// the language of the user interface, as found by `lan_mouse::i18n`. The
 /// window templates are translated at compile time, one copy per language.
 static LANGUAGE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+thread_local! {
+    /// the service this window started, stopped when the window closes
+    static PROCESS_CHILD: std::cell::RefCell<Option<process::Child>> =
+        const { std::cell::RefCell::new(None) };
+}
 
 /// selects the language of the window templates, called before `run`
 pub fn set_language(language: Option<String>) {
@@ -310,22 +324,50 @@ fn build_ui(app: &Application) {
     }
 
     log::debug!("connecting to lan-mouse-socket");
-    let (mut frontend_rx, frontend_tx) = match lan_mouse_ipc::try_connect() {
-        Ok(conn) => conn,
-        Err(e) => {
-            log::warn!("could not connect to daemon ({e}), spawning a new one");
-            if let Err(spawn_err) = process::Command::new(
+    // a window click or double click can activate the application twice: both
+    // activations find no service and both start one, of which the second
+    // exits at once; waiting first gives the other one's service the time
+    // to open its socket, so only a service that never shows up is started
+    let mut frontend = lan_mouse_ipc::try_connect_opt();
+    for _ in 0..4 {
+        if frontend.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        frontend = lan_mouse_ipc::try_connect_opt();
+    }
+    let (mut frontend_rx, frontend_tx) = match frontend {
+        Some(conn) => conn,
+        None => {
+            log::warn!("no running service, starting one");
+            let mut child = match process::Command::new(
                 env::current_exe().expect("could not determine executable path"),
             )
             .args(env::args().skip(1))
             .arg("daemon")
             .spawn()
             {
-                log::error!("failed to spawn daemon: {spawn_err}");
-                process::exit(1);
+                Ok(child) => Some(child),
+                Err(spawn_err) => {
+                    log::error!("failed to spawn daemon: {spawn_err}");
+                    None
+                }
+            };
+            let result = lan_mouse_ipc::connect_with_timeout(std::time::Duration::from_secs(20));
+            // a service that ends right away found another one running
+            if let Some(running) = child.as_mut() {
+                if running.try_wait().ok().flatten().is_some() {
+                    log::info!("another window already started the service");
+                    child = None;
+                }
             }
-            match lan_mouse_ipc::connect_with_timeout(std::time::Duration::from_secs(20)) {
-                Ok(conn) => conn,
+            match result {
+                Ok(conn) => {
+                    if let Some(child) = child.take() {
+                        PROCESS_CHILD.with(|c| c.replace(Some(child)));
+                    }
+                    conn
+                }
                 Err(e) => {
                     log::error!("the lan-mouse service did not start: {e}");
                     process::exit(1);
