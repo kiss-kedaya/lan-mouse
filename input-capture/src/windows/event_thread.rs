@@ -1,11 +1,11 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
-use std::ptr::addr_of_mut;
 
 use std::default::Default;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::error::TrySendError;
 use windows::Win32::Foundation::{FALSE, HWND, LPARAM, LRESULT, RECT, WPARAM};
@@ -19,12 +19,12 @@ use windows::core::{PCWSTR, w};
 
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DispatchMessageW, EDD_GET_DEVICE_INTERFACE_NAME, GetMessageW,
-    HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, PostThreadMessageW,
-    RegisterClassW, SetCursorPos, SetWindowsHookExW, TranslateMessage, WH_KEYBOARD_LL, WH_MOUSE_LL,
-    WINDOW_STYLE, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_RBUTTONDOWN,
-    WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW,
-    WNDPROC,
+    HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, PM_NOREMOVE, PeekMessageW,
+    PostThreadMessageW, RegisterClassW, SetCursorPos, SetWindowsHookExW, TranslateMessage,
+    WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_STYLE, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+    WM_MOUSEWHEEL, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
 };
 
 use input_event::{
@@ -186,14 +186,21 @@ pub(crate) fn warp(x: f64, y: f64) {
     }
 }
 
-fn get_msg() -> Option<MSG> {
+/// the next message, or `None` after one second or on `WM_QUIT`; the hooks
+/// still run while waiting, they are called by the system on this thread
+fn get_msg_until(poll: u32) -> Option<MSG> {
     unsafe {
         let mut msg = std::mem::zeroed();
-        let ret = GetMessageW(addr_of_mut!(msg), None, 0, 0);
-        match ret.0 {
+        let ret = if poll != 0 {
+            PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE).0
+        } else {
+            GetMessageW(&mut msg, None, 0, 0).0
+        };
+        match ret {
             0 => None,
             x if x > 0 => Some(msg),
-            _ => panic!("error in GetMessageW"),
+            -1 => panic!("error in GetMessageW"),
+            _ => None,
         }
     }
 }
@@ -229,6 +236,8 @@ fn start_routine(
 
     /* one hook-only capture per barrier lets the service activate all four
     positions without sending any real input */
+    // no screen yet (a remote session that is not attached, displays that are
+    // asleep): try again from the message loop instead of giving up
     if let Some(space) = refresh_screenspace() {
         let mid_x = space.x + space.width / 2.0;
         let mid_y = space.y + space.height / 2.0;
@@ -299,7 +308,26 @@ fn start_routine(
     }
 
     /* run message loop */
-    while let Some(msg) = get_msg() {
+    let mut next_space_check = Instant::now();
+    loop {
+        // wake up once a second even without messages: displays that were
+        // missing at start up (a remote session that came up later) are
+        // picked up then
+        let timeout = Instant::now() >= next_space_check;
+        let Some(msg) = get_msg_until(u32::from(timeout)) else {
+            if timeout {
+                next_space_check = Instant::now() + Duration::from_secs(1);
+                // look again: the list is empty when the screens were not
+                // attached at start up
+                let was_empty = DISPLAYS.with_borrow(|(displays, _)| displays.is_empty());
+                DISPLAYS.with_borrow_mut(|(_, generation)| *generation = i32::MIN);
+                if was_empty && refresh_screenspace().is_some() {
+                    log::info!("displays available now");
+                }
+                continue;
+            }
+            break;
+        };
         // mouse / keybrd proc do not actually return a message
         if msg.hwnd.0.is_null() {
             /* messages sent via PostThreadMessage */
