@@ -135,6 +135,9 @@ fn try_send_event(
 }
 
 thread_local! {
+    /// the installed hooks, they live as long as the thread
+    static HOOKS: RefCell<Vec<windows::Win32::UI::WindowsAndMessaging::HHOOK>> =
+        const { RefCell::new(Vec::new()) };
     /// all configured clients
     static CLIENTS: RefCell<HashSet<Position>> = RefCell::new(HashSet::new());
     /// currently active client
@@ -237,10 +240,17 @@ fn start_routine(
 
     /* register hooks */
     unsafe {
-        let _ = SetWindowsHookExW(WH_MOUSE_LL, mouse_proc, None, 0).unwrap();
-        let _ = SetWindowsHookExW(WH_KEYBOARD_LL, kybrd_proc, None, 0).unwrap();
+        match SetWindowsHookExW(WH_MOUSE_LL, mouse_proc, None, 0) {
+            Ok(hook) => HOOKS.with_borrow_mut(|hooks| hooks.push(hook)),
+            Err(e) => log::error!("installing the mouse hook failed: {e}"),
+        }
+        match SetWindowsHookExW(WH_KEYBOARD_LL, kybrd_proc, None, 0) {
+            Ok(hook) => HOOKS.with_borrow_mut(|hooks| hooks.push(hook)),
+            Err(e) => log::error!("installing the keyboard hook failed: {e}"),
+        }
     }
 
+    log::info!("hooks installed");
     /* one hook-only capture per barrier lets the service activate all four
     positions without sending any real input */
     // no screen yet (a remote session that is not attached, displays that are
@@ -256,13 +266,16 @@ fn start_routine(
         ] {
             warp(x, y);
             VERTICAL_ESCAPE.set(false);
-            let _ = bind_tx.blocking_send((
+            // the service only starts reading after the backend exists: a
+            // full channel must not stop this thread (it also runs the hooks)
+            let _ = bind_tx.try_send((
                 pos,
                 CaptureEvent::Input(Event::Pointer(PointerEvent::Position { time: 0, x, y })),
             ));
         }
     }
 
+    log::info!("screenspace reported to the service");
     let instance = unsafe { GetModuleHandleW(None).unwrap() };
     let instance = instance.into();
     let window_class: WNDCLASSW = WNDCLASSW {
@@ -317,6 +330,7 @@ fn start_routine(
     if DISPLAYS.with_borrow(|(displays, _)| displays.is_empty()) {
         warn_no_displays();
     }
+    log::info!("capture thread ready");
 
     /* run message loop */
     let mut next_space_check = Instant::now();
