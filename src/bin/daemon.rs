@@ -6,10 +6,7 @@ use std::process::ExitCode;
 use clap::Parser;
 
 fn main() -> ExitCode {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().filter_or("LAN_MOUSE_LOG_LEVEL", "info"),
-    )
-    .init();
+    lan_mouse::logging::init();
     if let Some(i) = std::env::args().position(|a| a == "--language") {
         if let Some(lang) = std::env::args().nth(i + 1) {
             std::env::set_var("LANGUAGE", lang);

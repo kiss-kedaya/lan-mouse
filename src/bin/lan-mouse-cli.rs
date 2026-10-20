@@ -5,10 +5,7 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().filter_or("LAN_MOUSE_LOG_LEVEL", "info"),
-    )
-    .init();
+    lan_mouse::logging::init();
     // a just started GUI reports "not connected" while its service comes up,
     // the connection wait defaults to a few seconds then
     if std::env::var_os("LAN_MOUSE_CLI_TIMEOUT").is_none() {

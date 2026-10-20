@@ -13,4 +13,5 @@ mod emulation;
 pub mod emulation_test;
 pub mod i18n;
 mod listen;
+pub mod logging;
 pub mod service;

@@ -1,4 +1,3 @@
-use env_logger::Env;
 use input_capture::InputCaptureError;
 use input_emulation::InputEmulationError;
 #[cfg(target_os = "linux")]
@@ -40,8 +39,7 @@ enum LanMouseError {
 
 fn main() {
     // init logging
-    let env = Env::default().filter_or("LAN_MOUSE_LOG_LEVEL", "info");
-    env_logger::init_from_env(env);
+    lan_mouse::logging::init();
     // `--language` wins over the environment and is inherited by the service
     if let Some(i) = std::env::args().position(|a| a == "--language") {
         lan_mouse::config::set_language(std::env::args().nth(i + 1).as_deref());

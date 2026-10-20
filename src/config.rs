@@ -44,6 +44,11 @@ pub fn local_commit() -> [u8; 8] {
 const CONFIG_FILE_NAME: &str = "config.toml";
 const CERT_FILE_NAME: &str = "lan-mouse.pem";
 
+/// the directory of the configuration file, `None` when it cannot be found
+pub fn config_dir() -> Option<PathBuf> {
+    default_path().ok()
+}
+
 fn default_path() -> Result<PathBuf, VarError> {
     #[cfg(unix)]
     let default_path = {
