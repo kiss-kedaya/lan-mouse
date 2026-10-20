@@ -116,13 +116,20 @@ jobs:
           while [ $i -lt "$(wc -l < $queue)" ]; do
             i=$((i + 1))
             file=$(sed -n "${i}p" $queue)
-            objdump -p "$file" | sed -n 's/^ *DLL Name: //p' | tr -d '\r' | while read -r dll; do
+            # the dependencies are collected first: a pipeline runs its parts
+            # in a subshell, their writes to the queue would be lost
+            deps=$(objdump -p "$file" | sed -n 's/^ *DLL Name: //p' | tr -d '\r')
+            for dll in $deps; do
               if ! grep -qix "$dll" $seen && [ -f "$prefix/bin/$dll" ]; then
                 echo "$dll" >> $seen
                 cp "$prefix/bin/$dll" $out/
                 echo "$out/$dll" >> $queue
               fi
             done
+          done
+          echo "$(wc -l < $seen) DLLs from $prefix/bin"
+          for dll in libgtk-4-1.dll libadwaita-1-0.dll libgobject-2.0-0.dll; do
+            test -f $out/$dll || { echo "missing $dll in the package" >&2; exit 1; }
           done
 
           # start scripts for the command line, both only pass the arguments
