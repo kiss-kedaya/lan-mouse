@@ -240,21 +240,106 @@ jobs:
           path: lan-mouse-linux-x86_64.tar.gz
 
   # ---------------------------------------------------------------- Release
+  # On a tag (v0.12.0) the built packages are attached to a release with notes
+  # written here. Pushing main first builds and then publishes a version
+  # release as well (0.12.0, the next patch of the latest tag), so that every
+  # merged change can be downloaded without tagging by hand.
   release:
     name: Release
     needs: [windows, macos, linux]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v5
         with:
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            lan-mouse-windows-x86_64.zip
-            lan-mouse-macos-arm64.zip
-            lan-mouse-macos-x86_64.zip
-            lan-mouse-linux-x86_64.tar.gz
+
+      - name: Determine the version
+        id: version
+        run: |
+          set -eu
+          package_version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag=${GITHUB_REF_NAME#v}
+            kind="Release"
+          else
+            tag=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+            if [ -z "$tag" ]; then
+              # first release of the repository
+              tag=$package_version
+            else
+              # 0.12.0 -> 0.12.1
+              tag=$(echo "$tag" | awk -F. '{ $NF = $NF + 1; OFS = "."; print }')
+            fi
+            # several pushes can land on main, keep one release per version
+            if git rev-parse -q --verify "refs/tags/v$tag" >/dev/null; then
+              exit 0
+            fi
+            kind="Nightly"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+
+      - name: Write the release notes
+        if: steps.version.outputs.tag != ''
+        run: |
+          set -eu
+          tag=${{ steps.version.outputs.tag }}
+          kind=${{ steps.version.outputs.kind }}
+          previous=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          {
+            echo "## Lan Mouse $tag"
+            echo
+            if [ "$kind" = "Nightly" ]; then
+              echo "Built from \`main\` (\`${GITHUB_SHA:0:7}\`). The next release version is $tag;"
+              echo "tag \`v$tag\` to make it permanent."
+            else
+              echo "Built from \`v$tag\` (\`${GITHUB_SHA:0:7}\`)."
+            fi
+            echo
+            echo "### Changes"
+            echo
+            if [ -n "$previous" ]; then
+              git log --no-merges --format='- %s (%h)' "$previous..HEAD"
+            else
+              echo "- first release"
+            fi
+            echo
+            echo "### Downloads"
+            echo
+            echo "| System | Package | Notes |"
+            echo "| --- | --- | --- |"
+            echo "| Windows 10/11 x86_64 | \`lan-mouse-windows-x86_64.zip\` | unpack, start \`lan-mouse.exe\`; all libraries are included |"
+            echo "| macOS (Apple Silicon) | \`lan-mouse-macos-arm64.zip\` | open \`Lan Mouse.app\` |"
+            echo "| macOS (Intel) | \`lan-mouse-macos-x86_64.zip\` | open \`Lan Mouse.app\` |"
+            echo "| Linux x86_64 | \`lan-mouse-linux-x86_64.tar.gz\` | unpack, start \`./lan-mouse\`; GTK 4 and libadwaita are needed |"
+            echo
+            echo "### Updating"
+            echo
+            echo "Install the new package on **every** device that takes part: pairing between a"
+            echo "device of an older version and one of this version is refused, because the"
+            echo "protocol changed. The configuration and the paired devices are kept when the"
+            echo "files are replaced."
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Publish
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=${{ steps.version.outputs.tag }}
+          gh release create "v$tag" \
+            lan-mouse-windows-x86_64.zip \
+            lan-mouse-macos-arm64.zip \
+            lan-mouse-macos-x86_64.zip \
+            lan-mouse-linux-x86_64.tar.gz \
+            --target "$GITHUB_SHA" \
+            --title "Lan Mouse $tag" \
+            --notes-file RELEASE_NOTES.md \
+            ${{ steps.version.outputs.kind == 'Nightly' && '--prerelease' || '' }}
